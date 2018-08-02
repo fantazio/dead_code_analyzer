@@ -340,13 +340,30 @@ let export ?(sep = ".") path u stock id loc =
     ^ sep
     ^ id.Ident.name
   in
+  let tezos_match u fname =
+    let rec module_name_pos u curr =
+      (* relies on the double underscore as separator *)
+      if curr >= String.length u then None
+      else if curr > 1 && u.[curr - 2] = '_' && u.[curr - 1] = '_' then Some curr
+      else module_name_pos u (curr + 1)
+    in
+    match module_name_pos u 2 with
+    | None -> false
+    | Some pos ->
+        let iface_name =
+          String.sub u pos (String.length u - pos)
+          |> String.uncapitalize_ascii
+        in
+        iface_name = fname
+  in
   (* a .cmi file can contain locations from other files.
     For instance:
         module M : Set.S with type elt = int
     will create value definitions whose location is in set.mli
   *)
+  let fname = unit loc.Location.loc_start.Lexing.pos_fname in
   if not loc.Location.loc_ghost
-  && (u = unit loc.Location.loc_start.Lexing.pos_fname || u == _include)
+  && (u = fname || u == _include || tezos_match u fname)
   && check_underscore id.Ident.name then
     hashtbl_add_to_list stock loc.Location.loc_start (!current_src, value)
 
