@@ -7,10 +7,7 @@
 (*                                                                         *)
 (***************************************************************************)
 
-
 open Typedtree
-
-
 
 (* Functions needing a location in the current file to be processed
  * before being executed.
@@ -24,20 +21,13 @@ val later : (unit -> unit) list ref
  * before being executed. *)
 val last : (unit -> unit) list ref
 
-
 (* Self cleaning *)
-val eom :
-  unit -> unit
-
+val eom : unit -> unit
 
 (* Add all optional arguments met if they are used to match a signature or the location
  * is not a ghost and they are part of the application (w/ or w/o value) *)
 val process :
-  Lexing.position
-  -> (Asttypes.arg_label * expression option) list
-  -> unit
-
+  Lexing.position -> (Asttypes.arg_label * expression option) list -> unit
 
 (* Constructs the opt_args field of the given node *)
-val node_build :
-  Lexing.position -> Typedtree.expression -> unit
+val node_build : Lexing.position -> Typedtree.expression -> unit

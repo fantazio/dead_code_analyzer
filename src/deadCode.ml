@@ -7,122 +7,124 @@
 (*                                                                         *)
 (***************************************************************************)
 
-(** Dead code anlyzing tool. It only reports unused exported values, constructors/record fields
-  and methods by default.
-  Options can enable reporting of optional arguments always/never used as bad style of code.
-  In addition to selecting which reports are to be displayed, the limit of authorized
-  occurences needed to be reported can be selected (default is 0).
-  It assumes .mli/.mfi are compiled with -keep-locs and .ml/.mf are compiled with -bin-annot.
- *)
-
+(** Dead code anlyzing tool. It only reports unused exported values,
+    constructors/record fields and methods by default. Options can enable
+    reporting of optional arguments always/never used as bad style of code. In
+    addition to selecting which reports are to be displayed, the limit of
+    authorized occurences needed to be reported can be selected (default is 0).
+    It assumes .mli/.mfi are compiled with -keep-locs and .ml/.mf are compiled
+    with -bin-annot. *)
 
 open Types
 open Typedtree
 
 open DeadCommon
 
+(********   ATTRIBUTES   ********)
 
-                (********   ATTRIBUTES   ********)
+let bad_files = ref [] (* unreadable cmi/cmt files *)
 
-let bad_files = ref []                (* unreadable cmi/cmt files *)
+let main_files = Hashtbl.create 256 (* names -> paths *)
 
-let main_files = Hashtbl.create 256   (* names -> paths *)
-
-
-                (********   PROCESSING   ********)
+(********   PROCESSING   ********)
 
 let rec collect_export ?(mod_type = false) path u stock = function
-
-  | Sig_value (id, ({Types.val_loc; val_type; _} as value), _)
-    when not val_loc.Location.loc_ghost && stock == decs ->
+  | Sig_value (id, ({ Types.val_loc; val_type; _ } as value), _)
+    when (not val_loc.Location.loc_ghost) && stock == decs ->
       if !DeadFlag.exported.DeadFlag.print then export path u stock id val_loc;
       let path = Ident.create_persistent (Ident.name id ^ "*") :: path in
       DeadObj.collect_export path u stock ~obj:val_type val_loc;
       !DeadLexiFi.sig_value value
-
   | Sig_type (id, t, _, _) when stock == decs ->
       DeadType.collect_export (id :: path) u stock t
-
-  | Sig_class (id, {Types.cty_type = t; cty_loc = loc; _}, _, _) ->
+  | Sig_class (id, { Types.cty_type = t; cty_loc = loc; _ }, _, _) ->
       DeadObj.collect_export (id :: path) u stock ~cltyp:t loc
-
-  | (Sig_module (id, _, {Types.md_type = t; _}, _, _)
-  | Sig_modtype (id, {Types.mtd_type = Some t; _}, _)) as s ->
-      let collect = match s with Sig_modtype _ -> mod_type | _ -> true in
+  | ( Sig_module (id, _, { Types.md_type = t; _ }, _, _)
+    | Sig_modtype (id, { Types.mtd_type = Some t; _ }, _) ) as s ->
+      let collect =
+        match s with
+        | Sig_modtype _ -> mod_type
+        | _ -> true
+      in
       if collect then
         DeadMod.sign t
         |> List.iter (collect_export ~mod_type (id :: path) u stock)
-
   | _ -> ()
-
 
 let rec treat_exp exp args =
   match exp.exp_desc with
   | Texp_apply (exp, in_args) -> treat_exp exp (in_args @ args)
-
-  | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; _}; _})
-  | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
+  | Texp_ident (_, _, { Types.val_loc = { Location.loc_start = loc; _ }; _ })
+  | Texp_field (_, _, { lbl_loc = { Location.loc_start = loc; _ }; _ }) ->
       DeadArg.process loc args
-
   | Texp_match (_, l, _) ->
-      List.iter (fun {c_rhs = exp; _} -> treat_exp exp args) l
-
-  | Texp_ifthenelse (_, exp_then, exp_else) ->
+      List.iter (fun { c_rhs = exp; _ } -> treat_exp exp args) l
+  | Texp_ifthenelse (_, exp_then, exp_else) -> (
       treat_exp exp_then args;
-      begin match exp_else with
+      match exp_else with
       | Some exp -> treat_exp exp args
       | _ -> ()
-      end
-
+    )
   | _ -> ()
-
 
 let value_binding super self x =
   let old_later = !DeadArg.later in
   DeadArg.later := [];
   incr depth;
   let open Asttypes in
-  begin match x with
+  ( match x with
   | { vb_pat =
-        { pat_desc = Tpat_var (
-            _,
-            {loc = {Location.loc_start = loc1; loc_ghost = false; _}; _}, _);
-          _};
+        { pat_desc =
+            Tpat_var
+              ( _,
+                { loc = { Location.loc_start = loc1; loc_ghost = false; _ }; _ },
+                _
+              );
+          _
+        };
       vb_expr =
-        { exp_desc = Texp_ident (
-            _,
-            _,
-            {val_loc = {Location.loc_start = loc2; loc_ghost = false; _}; _});
-          _};
+        { exp_desc =
+            Texp_ident
+              ( _,
+                _,
+                { val_loc = { Location.loc_start = loc2; loc_ghost = false; _ };
+                  _
+                }
+              );
+          _
+        };
       _
     } ->
       VdNode.merge_locs loc1 loc2
   | { vb_pat =
-        { pat_desc = Tpat_var (
-            _,
-            {loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _);
-          _};
+        { pat_desc =
+            Tpat_var
+              ( _,
+                { loc = { Location.loc_start = loc; loc_ghost = false; _ }; _ },
+                _
+              );
+          _
+        };
       vb_expr = exp;
       _
     } ->
       DeadArg.node_build loc exp;
       DeadObj.add_var loc exp
   | _ -> ()
-  end;
+  );
 
   let r = super.Tast_mapper.value_binding self x in
-  List.iter (fun f -> f()) !DeadArg.later;
+  List.iter (fun f -> f ()) !DeadArg.later;
   DeadArg.later := old_later;
   decr depth;
   r
 
-
 let structure_item super self i =
   let open Asttypes in
-  begin match i.str_desc with
-  | Tstr_type  (_, l) when !DeadFlag.typ.DeadFlag.print ->
+  ( match i.str_desc with
+  | Tstr_type (_, l) when !DeadFlag.typ.DeadFlag.print ->
       List.iter DeadType.tstr l
-  | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
+  | Tstr_module { mb_name = { txt = Some txt; _ }; _ } ->
       mods := txt :: !mods;
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
   | Tstr_class l when !DeadFlag.obj.DeadFlag.print -> List.iter DeadObj.tstr l
@@ -130,9 +132,12 @@ let structure_item super self i =
       let collect_include signature =
         let prev_last_loc = !last_loc in
         List.iter
-          (collect_export ~mod_type:true [Ident.create_persistent (unit !current_src)] _include incl)
+          (collect_export ~mod_type:true
+             [ Ident.create_persistent (unit !current_src) ]
+             _include incl
+          )
           signature;
-        last_loc := prev_last_loc;
+        last_loc := prev_last_loc
       in
       let rec includ mod_expr =
         match mod_expr.mod_desc with
@@ -142,136 +147,148 @@ let structure_item super self i =
         | Tmod_functor (_, mod_expr)
         | Tmod_apply (_, mod_expr, _)
         | Tmod_apply_unit mod_expr
-        | Tmod_constraint (mod_expr, _, _, _) -> includ mod_expr
+        | Tmod_constraint (mod_expr, _, _, _) ->
+            includ mod_expr
       in
       includ i.incl_mod
   | _ -> ()
-  end;
+  );
   let r = super.Tast_mapper.structure_item self i in
-  begin match i.str_desc with
+  ( match i.str_desc with
   | Tstr_module _ -> mods := List.tl !mods
   | _ -> ()
-  end;
+  );
   r
 
-
-let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -> k general_pattern =
+let pat : type k.
+    Tast_mapper.mapper ->
+    Tast_mapper.mapper ->
+    k general_pattern ->
+    k general_pattern =
  fun super self p ->
   let pat_loc = p.pat_loc.Location.loc_start in
-  let u s =
-    register_style pat_loc (Printf.sprintf "unit pattern %s" s)
-  in
+  let u s = register_style pat_loc (Printf.sprintf "unit pattern %s" s) in
   let open Asttypes in
-  if DeadType.is_unit p.pat_type && !DeadFlag.style.DeadFlag.unit_pat then begin
-    match p.pat_desc with
+  ( if DeadType.is_unit p.pat_type && !DeadFlag.style.DeadFlag.unit_pat then
+      match p.pat_desc with
       | Tpat_construct _ -> ()
-      | Tpat_var (_, {txt = "eta"; loc = _}, _)
-        when p.pat_loc = Location.none -> ()
-      | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
+      | Tpat_var (_, { txt = "eta"; loc = _ }, _) when p.pat_loc = Location.none
+        ->
+          ()
+      | Tpat_var (_, { txt; _ }, _) -> if check_underscore txt then u txt
       | Tpat_any -> if not !DeadFlag.underscore then u "_"
-      | Tpat_value tpat_arg ->
-        begin match (tpat_arg :> value general_pattern) with
-        | {pat_desc=Tpat_construct _; _} -> ()
-        | _ -> u "other"
-        end
+      | Tpat_value tpat_arg -> (
+          match (tpat_arg :> value general_pattern) with
+          | { pat_desc = Tpat_construct _; _ } -> ()
+          | _ -> u "other"
+        )
       | _ -> u ""
-  end;
-  begin match p.pat_desc with
+  );
+  ( match p.pat_desc with
   | Tpat_record (l, _) ->
       List.iter
-        (fun (_, {Types.lbl_loc = {Location.loc_start = lab_loc; _}; _}, _) ->
+        (fun (_, { Types.lbl_loc = { Location.loc_start = lab_loc; _ }; _ }, _)
+           ->
           if exported DeadFlag.typ lab_loc then
             DeadType.collect_references lab_loc pat_loc
         )
         l
   | _ -> ()
-  end;
+  );
   super.Tast_mapper.pat self p
-
 
 let expr super self e =
   let rec extra = function
     | [] -> ()
-    | (Texp_coerce (_, typ), _, _)::l -> DeadObj.coerce e typ.ctyp_type; extra l
-    | _::l -> extra l
+    | (Texp_coerce (_, typ), _, _) :: l ->
+        DeadObj.coerce e typ.ctyp_type;
+        extra l
+    | _ :: l -> extra l
   in
   extra e.exp_extra;
   let exp_loc = e.exp_loc.Location.loc_start in
-  begin match e.exp_desc with
-
-  | Texp_ident (path, _, _) when Path.name path = "Mlfi_types.internal_ttype_of" ->
+  ( match e.exp_desc with
+  | Texp_ident (path, _, _) when Path.name path = "Mlfi_types.internal_ttype_of"
+    ->
       !DeadLexiFi.ttype_of e
-
-  | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
+  | Texp_ident
+      ( _,
+        _,
+        { Types.val_loc = { Location.loc_start = loc; loc_ghost = false; _ };
+          _
+        }
+      )
     when exported DeadFlag.exported loc ->
       LocHash.add_set references loc exp_loc
-
-  | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
-  | Texp_construct (_, {cstr_loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _)
+  | Texp_field
+      (_, _, { lbl_loc = { Location.loc_start = loc; loc_ghost = false; _ }; _ })
+  | Texp_construct
+      ( _,
+        { cstr_loc = { Location.loc_start = loc; loc_ghost = false; _ }; _ },
+        _
+      )
     when exported DeadFlag.typ loc ->
       DeadType.collect_references loc exp_loc
-
   | Texp_send (e2, Tmeth_name meth) ->
-    DeadObj.collect_references ~meth ~call_site:e.exp_loc.Location.loc_start e2
-  | Texp_send (e2, Tmeth_val id)
-  | Texp_send (e2, Tmeth_ancestor (id, _)) ->
-    DeadObj.collect_references ~meth:(Ident.name id) ~call_site:e.exp_loc.Location.loc_start e2
-
-
-  | Texp_apply (exp, args) ->
+      DeadObj.collect_references ~meth ~call_site:e.exp_loc.Location.loc_start
+        e2
+  | Texp_send (e2, Tmeth_val id) | Texp_send (e2, Tmeth_ancestor (id, _)) ->
+      DeadObj.collect_references ~meth:(Ident.name id)
+        ~call_site:e.exp_loc.Location.loc_start e2
+  | Texp_apply (exp, args) -> (
       if DeadFlag.(!opta.print || !optn.print) then treat_exp exp args;
-      begin match exp.exp_desc with
-      | Texp_ident (_, _, {Types.val_loc; _})
-        when val_loc.Location.loc_ghost -> (* The node is due to lookup preparation
-            * anticipated in the typedtree, wich is a case we do not want to treat
-            * otherwise all object's content would be marked as used at this point... *)
+      match exp.exp_desc with
+      | Texp_ident (_, _, { Types.val_loc; _ }) when val_loc.Location.loc_ghost
+        ->
+          (* The node is due to lookup preparation
+           * anticipated in the typedtree, wich is a case we do not want to treat
+           * otherwise all object's content would be marked as used at this point... *)
           ()
-      | Texp_ident (_, _, {val_type; _}) ->
-          DeadObj.arg val_type args
-      | _ ->
-          DeadObj.arg exp.exp_type args
-      end
-
-  | Texp_let (_, [{vb_pat; _}], _)
-    when DeadType.is_unit vb_pat.pat_type && !DeadFlag.style.DeadFlag.seq ->
-      begin match vb_pat.pat_desc with
+      | Texp_ident (_, _, { val_type; _ }) -> DeadObj.arg val_type args
+      | _ -> DeadObj.arg exp.exp_type args
+    )
+  | Texp_let (_, [ { vb_pat; _ } ], _)
+    when DeadType.is_unit vb_pat.pat_type && !DeadFlag.style.DeadFlag.seq -> (
+      match vb_pat.pat_desc with
       | Tpat_var (id, _, _) when not (check_underscore (Ident.name id)) -> ()
       | _ ->
-          register_style
-            vb_pat.pat_loc.Location.loc_start
+          register_style vb_pat.pat_loc.Location.loc_start
             "let () = ... in ... (=> use sequence)"
-      end
-
-  | Texp_match (_, [{c_lhs; _}], _)
-    when DeadType.is_unit c_lhs.pat_type && !DeadFlag.style.DeadFlag.seq ->
-      begin match c_lhs.pat_desc with
-      | Tpat_value tpat_arg ->
-        begin match (tpat_arg :> value general_pattern) with
-        | {pat_desc=Tpat_construct _; _} ->
-            register_style
-              c_lhs.pat_loc.Location.loc_start
-              "let () = ... in ... (=> use sequence)"
-        | _ -> ()
-        end
+    )
+  | Texp_match (_, [ { c_lhs; _ } ], _)
+    when DeadType.is_unit c_lhs.pat_type && !DeadFlag.style.DeadFlag.seq -> (
+      match c_lhs.pat_desc with
+      | Tpat_value tpat_arg -> (
+          match (tpat_arg :> value general_pattern) with
+          | { pat_desc = Tpat_construct _; _ } ->
+              register_style c_lhs.pat_loc.Location.loc_start
+                "let () = ... in ... (=> use sequence)"
+          | _ -> ()
+        )
       | _ -> ()
-      end
-
-  | Texp_let (
-        Asttypes.Nonrecursive,
-        [{vb_pat = {pat_desc = Tpat_var (id1, _, _); pat_loc = {loc_start = loc; _}; _}; _}],
-        {exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _})
-    when id1 = id2
-         && !DeadFlag.style.DeadFlag.binding
+    )
+  | Texp_let
+      ( Asttypes.Nonrecursive,
+        [ { vb_pat =
+              { pat_desc = Tpat_var (id1, _, _);
+                pat_loc = { loc_start = loc; _ };
+                _
+              };
+            _
+          }
+        ],
+        { exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _ }
+      )
+    when id1 = id2 && !DeadFlag.style.DeadFlag.binding
          && check_underscore (Ident.name id1) ->
       register_style loc "let x = ... in x (=> useless binding)"
-
   | _ -> ()
-  end;
+  );
   super.Tast_mapper.expr self e
 
-
 (* Parse the AST *)
-let collect_references =                          (* Tast_mapper *)
+let collect_references =
+  (* Tast_mapper *)
   let super = Tast_mapper.default in
   let wrap f loc self x =
     let l = !last_loc in
@@ -285,67 +302,79 @@ let collect_references =                          (* Tast_mapper *)
   in
 
   let expr = wrap (expr super) (fun x -> x.exp_loc) in
-  let pat: 'k. Tast_mapper.mapper -> 'k general_pattern -> 'k general_pattern =
-    fun m p -> wrap (pat super) (fun x -> x.pat_loc) m p
+  let pat : 'k. Tast_mapper.mapper -> 'k general_pattern -> 'k general_pattern =
+   fun m p -> wrap (pat super) (fun x -> x.pat_loc) m p
   in
   let structure_item = wrap (structure_item super) (fun x -> x.str_loc) in
   let value_binding = wrap (value_binding super) (fun x -> x.vb_expr.exp_loc) in
   let module_expr =
     wrap
-      (fun self x -> DeadMod.expr x; super.Tast_mapper.module_expr self x)
+      (fun self x ->
+        DeadMod.expr x;
+        super.Tast_mapper.module_expr self x
+      )
       (fun x -> x.mod_loc)
   in
   let class_structure =
-    (fun self x ->
-     DeadObj.class_structure x; super.Tast_mapper.class_structure self x)
+   fun self x ->
+    DeadObj.class_structure x;
+    super.Tast_mapper.class_structure self x
   in
   let class_field =
-    (fun self x ->
-     DeadObj.class_field x;
-     super.Tast_mapper.class_field self x)
+   fun self x ->
+    DeadObj.class_field x;
+    super.Tast_mapper.class_field self x
   in
   let class_field = wrap class_field (fun x -> x.cf_loc) in
   let typ =
-    (fun self x ->
-     !DeadLexiFi.type_ext x; super.Tast_mapper.typ self x)
+   fun self x ->
+    !DeadLexiFi.type_ext x;
+    super.Tast_mapper.typ self x
   in
   let type_declaration self x =
     !DeadLexiFi.type_decl x;
     super.Tast_mapper.type_declaration self x
   in
-  Tast_mapper.{ super with
-                structure_item; expr; pat; value_binding;
-                module_expr; class_structure; class_field; typ;
-                type_declaration
-              }
+  Tast_mapper.
+    { super with
+      structure_item;
+      expr;
+      pat;
+      value_binding;
+      module_expr;
+      class_structure;
+      class_field;
+      typ;
+      type_declaration
+    }
 
 let starts_with prefix s =
   let len = String.length prefix in
-  if len > String.length s then false
-  else String.sub s 0 len = prefix
+  if len > String.length s then false else String.sub s 0 len = prefix
 
 let ends_with suffix s =
   let len = String.length suffix in
   let s_len = String.length s in
-  if len > s_len then false
-  else String.sub s (s_len - len) len = suffix
+  if len > s_len then false else String.sub s (s_len - len) len = suffix
 
 let remove_wrap name =
   let n = String.length name in
   let rec loop i =
     if i > 2 then
-      if name.[i-1] == '_' && name.[i-2] == '_' then
+      if name.[i - 1] == '_' && name.[i - 2] == '_' then
         String.uncapitalize_ascii (String.sub name i (n - i))
       else loop (i - 1)
     else name
-  in loop (n - 1)
+  in
+  loop (n - 1)
 
 (* Checks the nature of the file *)
 let kind fn =
-  if not (Sys.file_exists fn) then begin
+  if not (Sys.file_exists fn) then (
     prerr_endline ("Warning: '" ^ fn ^ "' not found");
     `Ignore
-  end else if not (DeadFlag.is_excluded fn) then begin
+  )
+  else if not (DeadFlag.is_excluded fn) then
     (* When searching source files according to *.cmi or *.cmt files, *)
     (* we should consider dune (formerly known as jbuilder) puts the *)
     (* cmi/cmt files in a separate folder named either: *)
@@ -362,57 +391,56 @@ let kind fn =
       in
       let get_upper_base base =
         let split_upper_curr path =
-          Filename.dirname path, Filename.basename path
+          (Filename.dirname path, Filename.basename path)
         in
         let is_objs_dir dir =
           starts_with "." dir
           && (ends_with ".objs" dir || ends_with ".eobjs" dir)
         in
-        let upper_d, cur_dir = split_upper_curr (Filename.dirname base) in
+        let (upper_d, cur_dir) = split_upper_curr (Filename.dirname base) in
         if is_objs_dir cur_dir then
           let f = remove_wrap (Filename.basename base) in
           Some (Filename.concat upper_d f)
-        else (
+        else
           (* Try again on upper_d because there might be "byte" and *)
           (* "native" subdirs in the objs dir *)
-          let upper_d, cur_dir = split_upper_curr upper_d in
+          let (upper_d, cur_dir) = split_upper_curr upper_d in
           if is_objs_dir cur_dir then
             let f = remove_wrap (Filename.basename base) in
             Some (Filename.concat upper_d f)
           else None
-        )
       in
       let rec find_source base = function
         | [] -> None
         | ext :: tl ->
-          if good_ext base ext then Some (base ^ ext)
-          else find_source base tl
+            if good_ext base ext then Some (base ^ ext) else find_source base tl
       in
       match find_source base exts with
       | Some _ as src -> src
       | None ->
-        let (let*) = Option.bind in
-        let* base = get_upper_base base in
-        find_source base exts
+          let ( let* ) = Option.bind in
+          let* base = get_upper_base base in
+          find_source base exts
     in
     if Filename.check_suffix fn ".cmi" then
       let base = Filename.chop_suffix fn ".cmi" in
-      match good_exts base [".mli"; ".mfi"; ".ml"; ".mf"; ".mll"; ".mfl"] with
+      match good_exts base [ ".mli"; ".mfi"; ".ml"; ".mf"; ".mll"; ".mfl" ] with
       | None ->
-        if !DeadFlag.verbose then Printf.eprintf "Ignoring %s (no source?)\n%!" base;
-        `Ignore
+          if !DeadFlag.verbose then
+            Printf.eprintf "Ignoring %s (no source?)\n%!" base;
+          `Ignore
       | Some src -> `Iface src
     else if Filename.check_suffix fn ".cmt" then
       let base = Filename.chop_suffix fn ".cmt" in
-      match good_exts base [".ml"; ".mf"; ".mll"; ".mfl"] with
+      match good_exts base [ ".ml"; ".mf"; ".mll"; ".mfl" ] with
       | None ->
-        if !DeadFlag.verbose then Printf.eprintf "Ignoring %s (no source?)\n%!" base;
-        `Ignore
+          if !DeadFlag.verbose then
+            Printf.eprintf "Ignoring %s (no source?)\n%!" base;
+          `Ignore
       | Some src -> `Implem src
-    else if Sys.is_directory fn       then  `Dir
-    else            (* default *)           `Ignore
-  end else          (* default *)           `Ignore
-
+    else if Sys.is_directory fn then `Dir
+    else (* default *) `Ignore
+  else (* default *) `Ignore
 
 let regabs fn =
   current_src := fn;
@@ -420,78 +448,74 @@ let regabs fn =
   if !DeadCommon.declarations then
     hashtbl_add_unique_to_list main_files (unit fn) ()
 
-
-let read_interface fn src = let open Cmi_format in
+let read_interface fn src =
+  let open Cmi_format in
   try
     regabs src;
     let u = unit fn in
-    if !DeadFlag.exported.DeadFlag.print
-       || !DeadFlag.obj.DeadFlag.print
-       || !DeadFlag.typ.DeadFlag.print
-    then
+    if
+      !DeadFlag.exported.DeadFlag.print || !DeadFlag.obj.DeadFlag.print
+      || !DeadFlag.typ.DeadFlag.print
+    then (
       let f =
-        collect_export [Ident.create_persistent (String.capitalize_ascii u)] u decs
+        collect_export
+          [ Ident.create_persistent (String.capitalize_ascii u) ]
+          u decs
       in
       List.iter f (read_cmi fn).cmi_sign;
       last_loc := Lexing.dummy_pos
+    )
   with Cmi_format.Error (Wrong_version_interface _) ->
     (*Printf.eprintf "cannot read cmi file: %s\n%!" fn;*)
     bad_files := fn :: !bad_files
 
-
 (* Merge a location's references to another one's *)
 let assoc decs (loc1, loc2) =
-  let fn1 = loc1.Lexing.pos_fname
-  and fn2 = loc2.Lexing.pos_fname in
+  let fn1 = loc1.Lexing.pos_fname and fn2 = loc2.Lexing.pos_fname in
   let is_implem fn = fn.[String.length fn - 1] <> 'i' in
   let has_iface fn =
     fn.[String.length fn - 1] = 'i'
-    ||  ( unit fn = unit !current_src
-          &&  try Sys.file_exists (find_abspath fn ^ "i")
-              with Not_found -> false
-        )
+    || unit fn = unit !current_src
+       && try Sys.file_exists (find_abspath fn ^ "i") with Not_found -> false
   in
   let is_iface fn loc =
-    Hashtbl.mem decs loc || unit fn <> unit !current_src
+    Hashtbl.mem decs loc
+    || unit fn <> unit !current_src
     || not (is_implem fn && has_iface fn)
   in
-  if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then begin
+  if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then (
     if (!DeadFlag.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
       DeadCommon.LocHash.merge_set references loc2 references loc1;
-    if is_iface fn1 loc1 then begin
+    if is_iface fn1 loc1 then (
       DeadCommon.LocHash.merge_set references loc1 references loc2;
-      if is_iface fn2 loc2 then
-        DeadCommon.LocHash.add_set references loc1 loc2
-    end
-    else
-      DeadCommon.LocHash.merge_set references loc2 references loc1
-  end
-
+      if is_iface fn2 loc2 then DeadCommon.LocHash.add_set references loc1 loc2
+    )
+    else DeadCommon.LocHash.merge_set references loc2 references loc1
+  )
 
 let clean references loc =
   let fn = loc.Lexing.pos_fname in
-  if (fn.[String.length fn - 1] <> 'i' && unit fn = unit !current_src) then
+  if fn.[String.length fn - 1] <> 'i' && unit fn = unit !current_src then
     LocHash.remove references loc
 
 let eom loc_dep =
-  DeadArg.eom();
+  DeadArg.eom ();
   List.iter (assoc decs) loc_dep;
   List.iter (assoc DeadType.decs) !DeadType.dependencies;
-  if Sys.file_exists (!current_src ^ "i") then begin
+  if Sys.file_exists (!current_src ^ "i") then (
     let clean =
-      List.iter
-        (fun (loc1, loc2) ->
-          clean references loc1; clean references loc2
-        )
+      List.iter (fun (loc1, loc2) ->
+          clean references loc1;
+          clean references loc2
+      )
     in
     clean loc_dep;
-    clean !DeadType.dependencies;
-  end;
+    clean !DeadType.dependencies
+  );
   VdNode.eom ();
   DeadObj.eom ();
   DeadType.dependencies := [];
   Hashtbl.reset incl
-
 
 (* Starting point *)
 let rec load_file fn =
@@ -500,22 +524,30 @@ let rec load_file fn =
       last_loc := Lexing.dummy_pos;
       if !DeadFlag.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       read_interface fn src
-
-  | `Implem src ->
+  | `Implem src -> (
       let open Cmt_format in
       last_loc := Lexing.dummy_pos;
       if !DeadFlag.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       regabs src;
       let cmt =
         try Some (read_cmt fn)
-        with _ -> bad_files := fn :: !bad_files; None
+        with _ ->
+          bad_files := fn :: !bad_files;
+          None
       in
 
-      begin match cmt with
-      | Some {cmt_annots = Implementation x; cmt_value_dependencies; _} ->
+      match cmt with
+      | Some { cmt_annots = Implementation x; cmt_value_dependencies; _ } ->
           let prepare = function
-            | {Types.val_loc = {Location.loc_start = loc1; loc_ghost = false; _}; _},
-              {Types.val_loc = {Location.loc_start = loc2; loc_ghost = false; _}; _} ->
+            | ( { Types.val_loc =
+                    { Location.loc_start = loc1; loc_ghost = false; _ };
+                  _
+                },
+                { Types.val_loc =
+                    { Location.loc_start = loc2; loc_ghost = false; _ };
+                  _
+                }
+              ) ->
                 VdNode.merge_locs ~force:true loc2 loc1
             | _ -> ()
           in
@@ -527,28 +559,24 @@ let rec load_file fn =
             if !DeadFlag.exported.DeadFlag.print then
               List.rev_map
                 (fun (vd1, vd2) ->
-                  (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
+                  ( vd1.Types.val_loc.Location.loc_start,
+                    vd2.Types.val_loc.Location.loc_start
+                  )
                 )
                 cmt_value_dependencies
             else []
           in
           eom loc_dep
-
-      | _ -> ()  (* todo: support partial_implementation? *)
-      end
-
+      | _ -> () (* todo: support partial_implementation? *)
+    )
   | `Dir ->
       let next = Sys.readdir fn in
       Array.sort compare next;
-      Array.iter
-        (fun s -> load_file (fn ^ "/" ^ s))
-        next
+      Array.iter (fun s -> load_file (fn ^ "/" ^ s)) next
       (* else Printf.eprintf "skipping directory %s\n" fn *)
-
   | _ -> ()
 
-
-                (********   REPORTING   ********)
+(********   REPORTING   ********)
 
 (* Prepare the list of opt_args for report *)
 let analyze_opt_args () =
@@ -557,15 +585,16 @@ let analyze_opt_args () =
   let tbl = Hashtbl.create 256 in
   let dec_loc loc = Hashtbl.mem main_files (unit loc.Lexing.pos_fname) in
 
-  let analyze = fun (loc, lab, has_val, call_site) ->
+  let analyze =
+   fun (loc, lab, has_val, call_site) ->
     let slot =
       try Hashtbl.find tbl (loc, lab)
       with Not_found ->
-        let r = {with_val = []; without_val = []} in
-        if dec_loc loc then begin
+        let r = { with_val = []; without_val = [] } in
+        if dec_loc loc then (
           all := (loc, lab, r) :: !all;
           Hashtbl.add tbl (loc, lab) r
-        end;
+        );
         r
     in
     if has_val then slot.with_val <- call_site :: slot.with_val
@@ -573,178 +602,213 @@ let analyze_opt_args () =
   in
 
   List.iter analyze !opt_args;
-  List.iter                   (* Remove call sites accounted more than once for the same element *)
+  List.iter
+    (* Remove call sites accounted more than once for the same element *)
     (fun (_, _, slot) ->
-      slot.with_val     <- List.sort_uniq compare slot.with_val;
-      slot.without_val  <- List.sort_uniq compare slot.without_val)
+      slot.with_val <- List.sort_uniq compare slot.with_val;
+      slot.without_val <- List.sort_uniq compare slot.without_val
+    )
     !all;
   !all
 
-
 let report_opt_args s l =
-  let opt =
-    if s = "NEVER" then !DeadFlag.optn
-    else !DeadFlag.opta
-  in
+  let opt = if s = "NEVER" then !DeadFlag.optn else !DeadFlag.opta in
   let percent = percent opt in
   let rec report_opt_args nb_call =
     let open DeadFlag in
-    let l = List.filter
-        (fun (_, _, slot, ratio, _) -> let ratio = 1. -. ratio in
+    let l =
+      List.filter (fun (_, _, slot, ratio, _) ->
+          let ratio = 1. -. ratio in
           if opt.threshold.optional = `Both then
             ratio >= opt.threshold.percentage && check_length nb_call slot
-          else ratio >= percent nb_call
-            && (opt.threshold.percentage >= 1. || ratio < (percent (nb_call - 1))))
+          else
+            ratio >= percent nb_call
+            && (opt.threshold.percentage >= 1. || ratio < percent (nb_call - 1))
+      )
       @@ List.map
-        (fun (loc, lab, slot) ->
-          let l = if s = "NEVER" then slot.with_val else slot.without_val in
-          let total = List.length slot.with_val + List.length slot.without_val in
-          let ratio = float_of_int (List.length l) /. float_of_int total
-          in (loc, lab, l, ratio, total))
-        l
-      |> List.fast_sort (fun (loc1, lab1, slot1, _, _) (loc2, lab2, slot2, _, _) ->
-          compare (DeadCommon.abs loc1, loc1, lab1, slot1) (DeadCommon.abs loc2, loc2, lab2, slot2))
+           (fun (loc, lab, slot) ->
+             let l = if s = "NEVER" then slot.with_val else slot.without_val in
+             let total =
+               List.length slot.with_val + List.length slot.without_val
+             in
+             let ratio = float_of_int (List.length l) /. float_of_int total in
+             (loc, lab, l, ratio, total)
+           )
+           l
+      |> List.fast_sort
+           (fun (loc1, lab1, slot1, _, _) (loc2, lab2, slot2, _, _) ->
+             compare
+               (DeadCommon.abs loc1, loc1, lab1, slot1)
+               (DeadCommon.abs loc2, loc2, lab2, slot2)
+         )
     in
 
     let change =
-      let (loc, _, _, _, _) = try List.hd l with _ -> (!last_loc, _none, [], 0., 0) in
+      let (loc, _, _, _, _) =
+        try List.hd l with _ -> (!last_loc, _none, [], 0., 0)
+      in
       dir (DeadCommon.abs loc)
     in
 
-    let pretty_print = fun (loc, lab, slot, ratio, total) ->
+    let pretty_print =
+     fun (loc, lab, slot, ratio, total) ->
       if change (DeadCommon.abs loc) then print_newline ();
-      prloc loc; print_string ("?" ^ lab);
-      if ratio <> 0. then begin
+      prloc loc;
+      print_string ("?" ^ lab);
+      if ratio <> 0. then (
         Printf.printf "   (%d/%d calls)" (total - List.length slot) total;
         if opt.call_sites then print_string "  Exceptions:"
-      end;
+      );
       print_newline ();
-      if opt.call_sites then begin
+      if opt.call_sites then (
         List.iter (pretty_print_call ()) slot;
         if nb_call <> 0 then print_newline ()
-      end
+      )
     in
 
     let continue nb_call =
-      opt.threshold.optional = `Both && nb_call < opt.threshold.exceptions
-      || opt.threshold.optional = `Percent && percent nb_call > opt.threshold.percentage
+      (opt.threshold.optional = `Both && nb_call < opt.threshold.exceptions)
+      || opt.threshold.optional = `Percent
+         && percent nb_call > opt.threshold.percentage
     in
     let s =
-      (if nb_call > 0 then "OPTIONAL ARGUMENTS: ALMOST "
-      else "OPTIONAL ARGUMENTS: ") ^ s
+      ( if nb_call > 0 then "OPTIONAL ARGUMENTS: ALMOST "
+        else "OPTIONAL ARGUMENTS: "
+      )
+      ^ s
     in
-    report s ~opt ~extra:"Except" l continue nb_call pretty_print report_opt_args;
+    report s ~opt ~extra:"Except" l continue nb_call pretty_print
+      report_opt_args
+  in
+  report_opt_args 0
 
-  in report_opt_args 0
-
-
-let report_unused_exported () = report_basic decs "UNUSED EXPORTED VALUES" !DeadFlag.exported
-
+let report_unused_exported () =
+  report_basic decs "UNUSED EXPORTED VALUES" !DeadFlag.exported
 
 let report_style () =
   section "CODING STYLE";
-  if !style <> [] then begin
+  if !style <> [] then (
     style := List.fast_sort compare !style;
     let change =
       let (fn, _, _) = List.hd !style in
       dir fn
     in
-    List.iter (fun (fn, l, s) ->
-      if change fn then print_newline ();
-      prloc ~fn l;
-      print_endline s)
-    !style;
-  end;
-  print_newline ()
-  |> separator
-
+    List.iter
+      (fun (fn, l, s) ->
+        if change fn then print_newline ();
+        prloc ~fn l;
+        print_endline s
+      )
+      !style
+  );
+  print_newline () |> separator
 
 (* Option parsing and processing *)
 let parse () =
   let update_all print () =
     DeadFlag.(
-    update_style ((if print = "all" then "+" else "-") ^ "all");
-    update_basic "-E" DeadFlag.exported print;
-    update_basic "-M" obj print;
-    update_basic "-T" typ print;
-    update_opt opta print;
-    update_opt optn print)
+      update_style ((if print = "all" then "+" else "-") ^ "all");
+      update_basic "-E" DeadFlag.exported print;
+      update_basic "-M" obj print;
+      update_basic "-T" typ print;
+      update_opt opta print;
+      update_opt optn print
+    )
   in
 
   (* any extra argument can be accepted by any option using some
    * although it doesn't necessary affects the results (e.g. -O 3+4) *)
-  Arg.(parse
-    [ "--exclude", String DeadFlag.exclude, "<path>  Exclude given path from research.";
-
-      "--references",
-        String (fun dir -> DeadFlag.directories := dir :: !DeadFlag.directories),
-        "<path>  Consider given path to collect references.";
-
-      "--underscore", Unit DeadFlag.set_underscore, " Show names starting with an underscore";
-
-      "--verbose", Unit DeadFlag.set_verbose, " Verbose mode (ie., show scanned files)";
-      "-v", Unit DeadFlag.set_verbose, " See --verbose";
-
-      "--internal", Unit DeadFlag.set_internal,
-        " Keep internal uses as exported values uses when the interface is given. \
-          This is the default behaviour when only the implementation is found";
-
-      "--nothing", Unit (update_all "nothing"), " Disable all warnings";
-      "-a", Unit (update_all "nothing"), " See --nothing";
-      "--all", Unit (update_all "all"), " Enable all warnings";
-      "-A", Unit (update_all "all"), " See --all";
-
-      "-E", String (DeadFlag.update_basic "-E" DeadFlag.exported),
-        "<display>  Enable/Disable unused exported values warnings.\n    \
-        <display> can be:\n\
-          \tall\n\
-          \tnothing\n\
-          \t\"threshold:<integer>\": report elements used up to the given integer\n\
-          \t\"calls:<integer>\": like threshold + show call sites";
-
-      "-M", String (DeadFlag.update_basic "-M" DeadFlag.obj),
-        "<display>  Enable/Disable unused methods warnings.\n    \
-        See option -E for the syntax of <display>";
-
-      "-Oa", String (DeadFlag.update_opt DeadFlag.opta),
-        "<display>  Enable/Disable optional arguments always used warnings.\n    \
-        <display> can be:\n\
-          \tall\n\
-          \tnothing\n\
-          \t<threshold>\n\
-          \t\"calls:<threshold>\" like <threshold> + show call sites\n    \
-        <threshold> can be:\n\
-          \t\"both:<integer>,<float>\": both the number max of exceptions \
-          (given through the integer) and the percent of valid cases (given as a float) \
-          must be respected for the element to be reported\n\
-          \t\"percent:<float>\": percent of valid cases to be reported";
-
-      "-On", String (DeadFlag.update_opt DeadFlag.optn),
-        "<display>  Enable/Disable optional arguments never used warnings.\n    \
-        See option -Oa for the syntax of <display>";
-
-      "-S", String (DeadFlag.update_style),
-        " Enable/Disable coding style warnings.\n    \
-        Delimiters '+' and '-' determine if the following option is to enable or disable.\n    \
-        Options (can be used together):\n\
-          \tbind: useless binding\n\
-          \topt: optional arg in arg\n\
-          \tseq: use sequence\n\
-          \tunit: unit pattern\n\
-          \tall: bind & opt & seq & unit";
-
-      "-T", String (DeadFlag.update_basic "-T" DeadFlag.typ),
-        "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
-        See option -E for the syntax of <display>";
-
-    ]
-    (Printf.eprintf "Scanning files...\n%!";
-    load_file)
-    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:"))
-
+  Arg.(
+    parse
+      [ ( "--exclude",
+          String DeadFlag.exclude,
+          "<path>  Exclude given path from research."
+        );
+        ( "--references",
+          String
+            (fun dir -> DeadFlag.directories := dir :: !DeadFlag.directories),
+          "<path>  Consider given path to collect references."
+        );
+        ( "--underscore",
+          Unit DeadFlag.set_underscore,
+          " Show names starting with an underscore"
+        );
+        ( "--verbose",
+          Unit DeadFlag.set_verbose,
+          " Verbose mode (ie., show scanned files)"
+        );
+        ("-v", Unit DeadFlag.set_verbose, " See --verbose");
+        ( "--internal",
+          Unit DeadFlag.set_internal,
+          " Keep internal uses as exported values uses when the interface is \
+           given. This is the default behaviour when only the implementation \
+           is found"
+        );
+        ("--nothing", Unit (update_all "nothing"), " Disable all warnings");
+        ("-a", Unit (update_all "nothing"), " See --nothing");
+        ("--all", Unit (update_all "all"), " Enable all warnings");
+        ("-A", Unit (update_all "all"), " See --all");
+        ( "-E",
+          String (DeadFlag.update_basic "-E" DeadFlag.exported),
+          "<display>  Enable/Disable unused exported values warnings.\n\
+          \    <display> can be:\n\
+           \tall\n\
+           \tnothing\n\
+           \t\"threshold:<integer>\": report elements used up to the given \
+           integer\n\
+           \t\"calls:<integer>\": like threshold + show call sites"
+        );
+        ( "-M",
+          String (DeadFlag.update_basic "-M" DeadFlag.obj),
+          "<display>  Enable/Disable unused methods warnings.\n\
+          \    See option -E for the syntax of <display>"
+        );
+        ( "-Oa",
+          String (DeadFlag.update_opt DeadFlag.opta),
+          "<display>  Enable/Disable optional arguments always used warnings.\n\
+          \    <display> can be:\n\
+           \tall\n\
+           \tnothing\n\
+           \t<threshold>\n\
+           \t\"calls:<threshold>\" like <threshold> + show call sites\n\
+          \    <threshold> can be:\n\
+           \t\"both:<integer>,<float>\": both the number max of exceptions \
+           (given through the integer) and the percent of valid cases (given \
+           as a float) must be respected for the element to be reported\n\
+           \t\"percent:<float>\": percent of valid cases to be reported"
+        );
+        ( "-On",
+          String (DeadFlag.update_opt DeadFlag.optn),
+          "<display>  Enable/Disable optional arguments never used warnings.\n\
+          \    See option -Oa for the syntax of <display>"
+        );
+        ( "-S",
+          String DeadFlag.update_style,
+          " Enable/Disable coding style warnings.\n\
+          \    Delimiters '+' and '-' determine if the following option is to \
+           enable or disable.\n\
+          \    Options (can be used together):\n\
+           \tbind: useless binding\n\
+           \topt: optional arg in arg\n\
+           \tseq: use sequence\n\
+           \tunit: unit pattern\n\
+           \tall: bind & opt & seq & unit"
+        );
+        ( "-T",
+          String (DeadFlag.update_basic "-T" DeadFlag.typ),
+          "<display>  Enable/Disable unused constructors/records fields \
+           warnings.\n\
+          \    See option -E for the syntax of <display>"
+        )
+      ]
+      ( Printf.eprintf "Scanning files...\n%!";
+        load_file
+      )
+      ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:")
+  )
 
 let () =
-try
+  try
     parse ();
     DeadCommon.declarations := false;
 
@@ -757,26 +821,30 @@ try
 
     let open DeadFlag in
     !DeadLexiFi.prepare_report DeadType.decs;
-    if !DeadFlag.exported.print                 then  report_unused_exported ();
-    DeadObj.report();
-    DeadType.report();
-    if !DeadFlag.opta.DeadFlag.print || !DeadFlag.optn.DeadFlag.print
-    then  begin
-        let tmp = analyze_opt_args () in
-        if !DeadFlag.opta.print then  report_opt_args "ALWAYS" tmp;
-        if !DeadFlag.optn.print then  report_opt_args "NEVER" tmp end;
-    if [@warning "-44"] DeadFlag.(!style.opt_arg || !style.unit_pat
-    || !style.seq || !style.binding)            then  report_style ();
+    if !DeadFlag.exported.print then report_unused_exported ();
+    DeadObj.report ();
+    DeadType.report ();
+    if !DeadFlag.opta.DeadFlag.print || !DeadFlag.optn.DeadFlag.print then (
+      let tmp = analyze_opt_args () in
+      if !DeadFlag.opta.print then report_opt_args "ALWAYS" tmp;
+      if !DeadFlag.optn.print then report_opt_args "NEVER" tmp
+    );
+    if [@warning "-44"]
+      DeadFlag.(
+        !style.opt_arg || !style.unit_pat || !style.seq || !style.binding
+      )
+    then report_style ();
 
-    if !bad_files <> [] then begin
+    if !bad_files <> [] then (
       let oc = open_out_bin "remove_bad_files.sh" in
       Printf.fprintf oc "#!/bin/sh\n";
-      List.iter
-        (fun x -> Printf.fprintf oc "rm %s\n" x)
-        !bad_files;
+      List.iter (fun x -> Printf.fprintf oc "rm %s\n" x) !bad_files;
       close_out oc;
-      Printf.eprintf "*** INFO: Several binary files cannot be read.  Please run ./remove_bad_files.sh to remove them.\n%!"
-    end
+      Printf.eprintf
+        "*** INFO: Several binary files cannot be read.  Please run \
+         ./remove_bad_files.sh to remove them.\n\
+         %!"
+    )
   with exn ->
     Location.report_exception Format.err_formatter exn;
     exit 2

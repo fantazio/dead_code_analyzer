@@ -7,58 +7,35 @@
 (*                                                                         *)
 (***************************************************************************)
 
-
 open Typedtree
-
-
 
 val last_class : Lexing.position ref
 
-
 val collect_export :
-  Ident.t list
-  -> string
-  -> (Lexing.position, string * string) Hashtbl.t
-  -> ?obj: Types.type_expr
-  -> ?cltyp: Types.class_type
-  -> Location.t
-  -> unit
-
+  Ident.t list ->
+  string ->
+  (Lexing.position, string * string) Hashtbl.t ->
+  ?obj:Types.type_expr ->
+  ?cltyp:Types.class_type ->
+  Location.t ->
+  unit
 
 val collect_references :
-  meth: string
-  -> call_site: Lexing.position
-  -> expression
-  -> unit
+  meth:string -> call_site:Lexing.position -> expression -> unit
 
+val tstr : class_declaration * string list -> unit
 
-val tstr :
-  class_declaration * string list -> unit
+val add_var : Lexing.position -> expression -> unit
 
+val class_structure : class_structure -> unit
 
-val add_var :
-  Lexing.position -> expression -> unit
-
-
-val class_structure:
-  class_structure -> unit
-
-
-val class_field :
-  class_field -> unit
-
+val class_field : class_field -> unit
 
 val arg :
   Types.type_expr -> (Asttypes.arg_label * expression option) list -> unit
 
+val coerce : expression -> Types.type_expr -> unit
 
-val coerce:
-  expression -> Types.type_expr -> unit
+val eom : unit -> unit
 
-
-val eom :
-  unit -> unit
-
-
-val report :
-  unit -> unit
+val report : unit -> unit

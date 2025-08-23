@@ -12,10 +12,11 @@ val decs : (Lexing.position, string * string) Hashtbl.t
 val dependencies : (Lexing.position * Lexing.position) list ref
 
 val _TO_STRING_ : Types.type_expr -> string
-  (** [_TO_STRING_ typ] converts [typ] to its string representation in the toplevel *)
+(** [_TO_STRING_ typ] converts [typ] to its string representation in the
+    toplevel *)
 
 val check_style : Types.type_expr -> Lexing.position -> unit
-  (** Look for bad style typing. (i.e. Argument expecting an optional argument) *)
+(** Look for bad style typing. (i.e. Argument expecting an optional argument) *)
 
 val tstr : Typedtree.type_declaration -> unit
 
@@ -26,13 +27,12 @@ val nb_args : keep:[> `All | `Lbl | `Opt | `Reg ] -> Types.type_expr -> int
 val is_type : string -> bool
 
 val collect_export :
-  Ident.t list
-  -> string
-  -> (Lexing.position, string * string) Hashtbl.t
-  -> Types.type_declaration
-  -> unit
+  Ident.t list ->
+  string ->
+  (Lexing.position, string * string) Hashtbl.t ->
+  Types.type_declaration ->
+  unit
 
-val collect_references :
-  Lexing.position -> Lexing.position -> unit
+val collect_references : Lexing.position -> Lexing.position -> unit
 
-val report: unit -> unit
+val report : unit -> unit
