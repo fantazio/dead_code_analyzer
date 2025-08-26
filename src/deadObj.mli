@@ -36,6 +36,6 @@ val arg :
 
 val coerce : expression -> Types.type_expr -> unit
 
-val eom : unit -> unit
+val eof : unit -> unit
 
 val report : unit -> unit

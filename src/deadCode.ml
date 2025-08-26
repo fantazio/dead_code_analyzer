@@ -56,7 +56,7 @@ let rec treat_exp exp args =
   | Texp_apply (exp, in_args) -> treat_exp exp (in_args @ args)
   | Texp_ident (_, _, { Types.val_loc = { Location.loc_start = loc; _ }; _ })
   | Texp_field (_, _, { lbl_loc = { Location.loc_start = loc; _ }; _ }) ->
-      DeadArg.process loc args
+      DeadArg.register_uses loc args
   | Texp_match (_, l, _) ->
       List.iter (fun { c_rhs = exp; _ } -> treat_exp exp args) l
   | Texp_ifthenelse (_, exp_then, exp_else) -> (
@@ -68,8 +68,8 @@ let rec treat_exp exp args =
   | _ -> ()
 
 let value_binding super self x =
-  let old_later = !DeadArg.later in
-  DeadArg.later := [];
+  let at_eof_saved = !DeadArg.at_eof in
+  DeadArg.at_eof := [];
   incr depth;
   let open Asttypes in
   ( match x with
@@ -108,14 +108,14 @@ let value_binding super self x =
       vb_expr = exp;
       _
     } ->
-      DeadArg.node_build loc exp;
+      DeadArg.bind loc exp;
       DeadObj.add_var loc exp
   | _ -> ()
   );
 
   let r = super.Tast_mapper.value_binding self x in
-  List.iter (fun f -> f ()) !DeadArg.later;
-  DeadArg.later := old_later;
+  List.iter (fun f -> f ()) !DeadArg.at_eof;
+  DeadArg.at_eof := at_eof_saved;
   decr depth;
   r
 
@@ -498,8 +498,8 @@ let clean references loc =
   if fn.[String.length fn - 1] <> 'i' && unit fn = unit !current_src then
     LocHash.remove references loc
 
-let eom loc_dep =
-  DeadArg.eom ();
+let eof loc_dep =
+  DeadArg.eof ();
   List.iter (assoc decs) loc_dep;
   List.iter (assoc DeadType.decs) !DeadType.dependencies;
   if Sys.file_exists (!current_src ^ "i") then (
@@ -512,8 +512,8 @@ let eom loc_dep =
     clean loc_dep;
     clean !DeadType.dependencies
   );
-  VdNode.eom ();
-  DeadObj.eom ();
+  VdNode.eof ();
+  DeadObj.eof ();
   DeadType.dependencies := [];
   Hashtbl.reset incl
 
@@ -566,7 +566,7 @@ let rec load_file fn =
                 cmt_value_dependencies
             else []
           in
-          eom loc_dep
+          eof loc_dep
       | _ -> () (* todo: support partial_implementation? *)
     )
   | `Dir ->
@@ -580,7 +580,7 @@ let rec load_file fn =
 
 (* Prepare the list of opt_args for report *)
 let analyze_opt_args () =
-  List.iter (fun f -> f ()) !DeadArg.last;
+  List.iter (fun f -> f ()) !DeadArg.at_eocb;
   let all = ref [] in
   let tbl = Hashtbl.create 256 in
   let dec_loc loc = Hashtbl.mem main_files (unit loc.Lexing.pos_fname) in
