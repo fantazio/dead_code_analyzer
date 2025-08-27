@@ -1,0 +1,2 @@
+./examples/opt_args/opt_arg_in_arg_in_arg.ml:10: g_skip
+./examples/opt_args/opt_arg_in_arg_in_arg.ml:12: g_propagate

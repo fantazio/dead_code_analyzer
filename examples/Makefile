@@ -17,6 +17,7 @@ build:
 	make -C obj
 	make -C opt
 	make -C advanced
+	make -C opt_args
 
 clean:
 	rm -f *~ *.cm* *.o *.obj
