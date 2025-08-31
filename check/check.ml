@@ -10,7 +10,11 @@ let get_element ?(f = Str.search_forward) ~regexp ?(start = 0) line =
 
 (* Extract abs_path from current line *)
 let get_path =
-  get_element ~regexp:"\\./.*[</].*.mli?"
+  let dir_sep = Str.quote Filename.dir_sep in
+  let regexp =
+    {|\.|} ^ dir_sep ^ {|.*\(<\||} ^ dir_sep ^ {|\).*.mli?|}
+  in
+  get_element ~regexp
 
 (* Extract line number name from current line *)
 let get_pos line =
@@ -65,26 +69,21 @@ let extend = ref ""             (* section specific extension *)
                 (********   HELPERS   ********)
 
 let normalize fname =
-  let rec block fname pos len =
-    if pos = String.length fname || fname.[pos] = '/' then
-      String.sub fname (pos - len) len
-    else block fname (pos + 1) (len + 1)
-  in
-  let rec normalize acc fname pos =
-    if pos = String.length fname then acc
-    else
-      let blk = block fname pos 0 in
-      if blk = "" || blk = "." then
-        normalize acc fname (pos + 1)
-      else
-        normalize (acc ^ "/" ^ blk) fname (pos + String.length blk)
-  in normalize "." fname 0
+  Str.split (Str.regexp_string Filename.dir_sep) fname
+  |> List.concat_map (String.split_on_char '/')
+  |> List.filter (fun s -> s <> "" && s <> ".")
+  |> List.cons "."
+  |> String.concat Filename.dir_sep
 
 (* Prints all unreported lines from file *)
 let rec empty file =
   try
     let where = input_line file in
-    if where <> "" then (error ~why:"Not detected" ~where (); incr total);
+    if where <> "" then (
+      let where = normalize where in
+      error ~why:"Not detected" ~where ();
+      incr total
+    );
     empty file
   with _ -> close_in file
 
@@ -193,7 +192,10 @@ let rec section ?(path = true) ?(pos = true) ?(value = false) ?(info = true) () 
     end
     else begin
       incr total;
-      comp := if path && !comp = "" then ((Filename.chop_extension @@ get_path !nextl) ^ !extend |> check_fn) !nextl else !comp;
+      if path && !comp = "" then (
+        let no_ext = Filename.chop_extension @@ get_path !nextl in
+        comp := check_fn (no_ext ^ !extend) !nextl
+      );
       if not path || !comp <> "" then
         if not ((pos && not @@ check_pos !comp @@ get_pos !nextl)
         || (value && not @@ check_value !comp @@ get_info !nextl)
@@ -317,16 +319,29 @@ let result () =
 
 let rec get_fnames ?(acc = []) dir =
   try
+    let is_res_file fname =
+      Str.string_match
+        (Str.regexp (".*" ^ Str.quote Filename.dir_sep ^ "[_a-zA-Z0-9-]*.ml[a-z0-9]*"))
+        fname
+        0
+    in
     if Sys.is_directory dir then
-      acc @ Array.fold_left (fun l s -> get_fnames ~acc:l (normalize (dir ^ "/" ^ s))) [] @@ Sys.readdir dir
-    else if dir <> "./check.ml" && Str.string_match (Str.regexp ".*/[_a-zA-Z0-9-]*.ml[a-z0-9]*") dir 0 then dir::acc
+      let fnames =
+        Array.fold_left
+          (fun acc s -> get_fnames ~acc (normalize (dir ^ Filename.dir_sep ^ s)))
+          []
+          (Sys.readdir dir)
+      in
+      acc @ fnames
+    else if dir <> ("." ^ Filename.dir_sep ^ "check.ml") && is_res_file dir
+    then dir::acc
     else acc
   with _ -> acc
 
 let () =
   dir :=
     if (Array.length Sys.argv) < 2 then "."
-    else Sys.argv.(1);
+    else normalize Sys.argv.(1);
   res :=
     if (Array.length Sys.argv) < 3 then open_in "res.out"
     else open_in Sys.argv.(2);
@@ -338,7 +353,7 @@ let () =
       if c = 0 then compare x y
       else c)
     @@ get_fnames !dir;
-  dir := !dir ^ "/";
+  dir := !dir ^ Filename.dir_sep;
   sel_section () ;
   close_in !res;
   result ()

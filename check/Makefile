@@ -1,5 +1,6 @@
 
 LIBS=str.cma
+LIBSFLAGS=-I +str
 COMPFLAGS=-w +A-4-9-40-42 -bin-annot -keep-locs
 OCAMLC=ocamlc $(COMPFLAGS)
 OCAMLOPT=ocamlopt $(COMPFLAGS)
@@ -38,10 +39,10 @@ prepare:
 	make -C ../examples build > /dev/null 2>&1
 
 check.byt$(EXE): $(SRC)
-	$(OCAMLC) -o $@ $(LIBS) $^
+	$(OCAMLC) -o $@ $(LIBSFLAGS) $(LIBS) $^
 
 check.opt$(EXE): $(SRC)
-	$(OCAMLOPT) -o $@ $(LIBS:.cma=.cmxa) $^
+	$(OCAMLOPT) -o $@ $(LIBSFLAGS) $(LIBS:.cma=.cmxa) $^
 
 aggr.byt$(EXE): aggregate.ml
 	$(OCAMLC) -o $@ $^
