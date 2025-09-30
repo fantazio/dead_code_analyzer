@@ -1,0 +1,3 @@
+./examples/using_dune/unwrapped_lib/values_no_intf.ml:3: internally_used_int
+./examples/using_dune/unwrapped_lib/values_no_intf.ml:15: internally_used_fun
+./examples/using_dune/unwrapped_lib/values_no_intf.ml:27: internally_used_closure

@@ -1,0 +1,5 @@
+(executable
+ (public_name using_dune)
+ (name main)
+ (flags (:standard -bin-annot))
+ (libraries using_dune))

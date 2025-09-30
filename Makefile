@@ -1,7 +1,7 @@
-.PHONY: clean examples check
+.PHONY: clean examples check dca
 
-all:
-	dune build
+dca:
+	dune build -p dead_code_analyzer
 
 check:
 	make -C check

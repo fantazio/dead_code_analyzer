@@ -1,0 +1,5 @@
+(library
+ (name using_dune)
+ (wrapped false)
+ (flags (:standard -bin-annot -warn-error -A))
+)
