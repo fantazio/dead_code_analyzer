@@ -307,6 +307,7 @@ Nothing else to report in this section
 ./examples/using_make/dir/hidden_opt_use.ml:3: ?a
 ./examples/using_make/dir/match_opt.ml:3: ?b
 ./examples/using_make/dir/partial.ml:1: ?c
+./examples/using_make/dir/partial.ml:12: ?FN
 
 ./examples/using_make/foo.ml:1: ?a
 ./examples/using_make/letIn.mli:1: ?b
@@ -334,7 +335,6 @@ Nothing else to report in this section
 
 ./examples/using_make/dir/fn_arg.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:9: val f: ... -> (... -> ?_:_ -> ...) -> ...
-./examples/using_make/dir/fn_arg.ml:11: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/hidden_opt_use.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/match_opt.ml:5: let () = ... in ... (=> use sequence)
 
