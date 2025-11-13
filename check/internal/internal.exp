@@ -3,6 +3,7 @@
 ./examples/using_dune/unwrapped_lib/opt_args/opt_args.mli:1: unused_fun_with_single_never_used_opt_arg
 
 ./examples/using_dune/unwrapped_lib/values/values.mli:2: unused_int
+./examples/using_dune/unwrapped_lib/values/values.mli:14: unused_fun
 ./examples/using_dune/unwrapped_lib/values/values.mli:20: unused_alias_fun
 ./examples/using_dune/unwrapped_lib/values/values.mli:25: unused_closure
 ./examples/using_dune/unwrapped_lib/values/values_in_submodules.mli:3: Exported.unused_int
@@ -10,7 +11,6 @@
 ./examples/using_dune/unwrapped_lib/values/values_no_intf.ml:2: unused_int
 ./examples/using_dune/unwrapped_lib/values/values_no_intf.ml:13: unused_fun
 ./examples/using_dune/unwrapped_lib/values/values_no_intf.ml:20: unused_alias_fun
-./examples/using_dune/unwrapped_lib/values/values_no_intf.ml:22: FN
 ./examples/using_dune/unwrapped_lib/values/values_no_intf.ml:25: unused_closure
 
 ./examples/using_make/advanced/inc_val.mli:1: x
