@@ -60,7 +60,7 @@ let rec collect_export ?(mod_type = false) path u stock = function
         | Sig_modtype _ when not mod_type -> in_modtype
         | _ -> stock
       in
-      DeadMod.sign t
+      Utils.signature_of_modtype t
       |> List.iter (collect_export ~mod_type (id :: path) u stock)
 
   | _ -> ()
@@ -155,9 +155,9 @@ let structure_item super self i =
       in
       let rec includ mod_expr =
         match mod_expr.mod_desc with
-        | Tmod_ident (_, _) -> collect_include (DeadMod.sign mod_expr.mod_type)
+        | Tmod_ident (_, _) -> collect_include (Utils.signature_of_modtype mod_expr.mod_type)
         | Tmod_structure structure -> collect_include structure.str_type
-        | Tmod_unpack (_, mod_type) -> collect_include (DeadMod.sign mod_type)
+        | Tmod_unpack (_, mod_type) -> collect_include (Utils.signature_of_modtype mod_type)
         | Tmod_functor (_, mod_expr)
         | Tmod_apply (_, mod_expr, _)
         | Tmod_apply_unit mod_expr
