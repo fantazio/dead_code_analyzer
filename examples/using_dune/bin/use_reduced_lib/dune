@@ -1,0 +1,3 @@
+(library
+ (name use_reduced_lib)
+ (libraries reduced_lib))

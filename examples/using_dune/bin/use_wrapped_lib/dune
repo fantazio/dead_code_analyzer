@@ -1,4 +1,3 @@
 (library
  (name use_wrapped_lib)
- (libraries wrapped_lib)
- (wrapped true))
+ (libraries wrapped_lib))
