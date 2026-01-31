@@ -1,4 +1,3 @@
 (library
  (name use_preprocessed_lib)
- (libraries preprocessed_lib)
- (wrapped false))
+ (libraries preprocessed_lib))

@@ -1,0 +1,4 @@
+(library
+ (name reduced_lib)
+ (flags (:standard -warn-error -A))
+ (wrapped true))
