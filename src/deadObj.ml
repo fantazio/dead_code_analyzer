@@ -474,7 +474,7 @@ let report () =
     else acc
   in
 
-  report_basic ~folder decs "UNUSED METHODS" !DeadFlag.obj
+  report_basic ~folder decs "UNUSED METHODS" !Config.obj
 
 
 
@@ -482,7 +482,7 @@ let report () =
 
 
 let wrap f x =
-  if !DeadFlag.obj.print then f x else ()
+  if !Config.obj.print then f x else ()
 
 let collect_export path u stock ?obj ?cltyp loc =
   wrap (collect_export path u stock ~obj ~cltyp) loc
