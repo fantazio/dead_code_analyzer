@@ -173,7 +173,7 @@ let report () = report_basic decs "UNUSED CONSTRUCTORS/RECORD FIELDS" !Config.ty
                 (********   WRAPPING  ********)
 
 let wrap f x =
-  if Config.(!typ.print) then f x else ()
+  if Config.(is_activated !typ) then f x else ()
 
 let collect_export path u stock t = wrap (collect_export path u stock) t
 let tstr typ = wrap tstr typ

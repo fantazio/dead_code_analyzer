@@ -2,32 +2,52 @@
 
 (** {2 Sections configuration} *)
 
-(** {3 Main sections} *)
+type 'threshold section =
+  | Off (** Disabled *)
+  | On (** Enabled *)
+  | Threshold of 'threshold threshold_section (** Enabled with threshold *)
 
-type basic =
-  { print: bool (** Report section *)
-  ; threshold: int
+and 'threshold threshold_section =
+  { threshold: 'threshold
     (** Report subsections for elements used up to [!threshold] *)
   ; call_sites: bool (** Print call sites in the [!threshold]-related subsections *)
   }
 
-val exported : basic ref
+val is_activated : _ section -> bool
+(** [is_activated sec] returns `true` if the section must be reported *)
+
+val has_activated : _ section list -> bool
+(** [has_activated secs] returns `true` if one of the sections must be reported *)
+
+val call_sites_activated : _ section -> bool
+(** [call_sites_activated sec] returns `true` if call sites must be reported in
+    thresholded subsections *)
+
+(** {3 Main sections} *)
+
+type main_section = int section
+
+val exported : main_section ref
 (** Configuration for the unused exported values *)
 
-val obj : basic ref
+val obj : main_section ref
 (** Configuration for the methods *)
 
-val typ : basic ref
+val typ : main_section ref
 (** Configuration for the constructors/record fields *)
 
-val update_basic : string -> basic ref -> string -> unit
+val update_main : string -> main_section ref -> string -> unit
 (** [update_basic sec_arg section arg] updates the configuration of [section] according
     to the [arg] specification. [sec_arg] is the command line argument
     associated with the [section] *)
 
+val get_main_threshold : int section -> int
+(** [get_main_threshold main_sec] returns the threshold if
+    [main_sec = Threshold _], [0] otherwise. *)
+
 (** {3 Optional argument sections} *)
 
-type threshold =
+type opt_threshold =
   { percentage: float
       (** Subsections for opt args always/never used except at most
           [percentage] of the time will be reported *)
@@ -37,20 +57,15 @@ type threshold =
   ; optional: [`Percent | `Both] (** Threshold mode *)
   }
 
-type opt =
-  { print: bool (** Report section *)
-  ; threshold: threshold
-    (** Report subsections for opt args always/never used up to [!threshold] *)
-  ; call_sites: bool (** Print call sites in the [!threshold]-related subsections *)
-  }
+type opt_section = opt_threshold section
 
-val opta : opt ref
+val opta : opt_section ref
 (** Configuration for the optional arguments always used *)
 
-val optn : opt ref
+val optn : opt_section ref
 (** Configuration for the optional arguments never used *)
 
-val update_opt : opt ref -> string -> unit
+val update_opt : opt_section ref -> string -> unit
 (** [update_opt section arg] updates the configuration of [section] according
     to the [arg] specification *)
 

@@ -7,79 +7,78 @@
 (*                                                                         *)
 (***************************************************************************)
 
-type threshold = {percentage: float; exceptions: int; optional: [`Percent | `Both]}
+type 'threshold section =
+  | Off
+  | On
+  | Threshold of 'threshold threshold_section
 
-
-type opt = {print: bool; threshold: threshold; call_sites: bool}
-let opta = ref
-  {
-    print = false;
-    call_sites = false;
-    threshold =
-      {
-        exceptions = 0;
-        percentage = 1.;
-        optional = `Percent
-      };
-  }
-let optn = ref
-  {
-    print = false;
-    call_sites = false;
-    threshold =
-      {
-        exceptions = 0;
-        percentage = 1.;
-        optional = `Percent
-      };
+and 'threshold threshold_section =
+  { threshold: 'threshold
+  ; call_sites: bool
   }
 
+let is_activated = function
+  | Off -> false
+  | _ -> true
 
-let update_opt opt s =
-  let threshold s =
-    let len = String.length s in
-    if len > 5 && String.sub s 0 5 = "both:" then begin
-      let limits = String.sub s 5 (String.length s - 5) in
-      let thr =
-        let rec loop s pos len =
-          if len = String.length s then s
-          else if s.[pos] = ',' then String.sub s (pos - len) len
-          else loop s (pos + 1) (len + 1)
-        in loop limits 0 0
+let has_activated l = List.exists is_activated l
+
+let call_sites_activated = function
+  | Threshold {call_sites; _} -> call_sites
+  | _ -> false
+
+type opt_threshold =
+  { percentage: float
+  ; exceptions: int
+  ; optional: [`Percent | `Both]
+  }
+
+type opt_section = opt_threshold section
+
+let opta = ref Off
+let optn = ref Off
+
+let update_opt opt = function
+  | "all" -> opt := On
+  | "nothing" -> opt := Off
+  | arg ->
+      let raise_bad_arg msg =
+        (* TODO: improve error reporting *)
+        raise (Arg.Bad ("-Ox: " ^ msg))
       in
-      let pos = String.length thr + 1 in
-      let pct = String.sub limits pos (String.length limits - pos) in
-      opt := {!opt with threshold={!opt.threshold with optional = `Both}};
-      let thr = String.trim thr in
-      let pct = String.trim pct in
-      try
-        opt := {!opt with threshold = {!opt.threshold with exceptions = int_of_string thr}};
-        opt := {!opt with threshold = {!opt.threshold with percentage = float_of_string pct}}
-      with Failure _ -> raise (Arg.Bad ("-Ox: wrong arguments: " ^ limits))
-    end
-    else if len > 8 && String.sub s 0 8 = "percent:" then
-      let pct = String.sub s 8 (String.length s - 8) |> String.trim in
-      try opt := {!opt with threshold={!opt.threshold with percentage = float_of_string pct}}
-      with Failure _ -> raise (Arg.Bad ("-Ox: wrong argument: " ^ pct))
-    else raise (Arg.Bad ("-Ox: unknown option " ^ s))
-  in
-  match s with
-  | "all" -> opt := {!opt with print = true}
-  | "nothing" -> opt := {!opt with print = false}
-  | s ->
-      opt := {!opt with print = true};
-      let s =
-        if String.length s > 6 && String.sub s 0 6 = "calls:" then begin
-          opt := {!opt with call_sites = true};
-          String.sub s 6 (String.length s - 6)
-        end
-        else s
+      let call_sites, arg =
+        if String.starts_with ~prefix:"calls" arg then
+          let arg = String.sub arg 6 (String.length arg - 6) in
+          (true, arg)
+        else (false, arg)
       in
-      threshold s;
-      if !opt.threshold.exceptions < 0 then
-        raise (Arg.Bad ("-Ox: number of exceptions must be >= 0"))
-      else if !opt.threshold.percentage > 1. || !opt.threshold.percentage < 0. then
-        raise (Arg.Bad ("-Ox: percentage must be >= 0.0 and <= 1.0"))
+      let threshold =
+        let len = String.length arg in
+        if String.starts_with ~prefix:"both:" arg then
+          let limits = String.sub arg 5 (len - 5) in
+          match Scanf.sscanf limits "%u , %F" (fun i f -> (i, f)) with
+          | exception Scanf.Scan_failure _
+          | exception Failure _
+          | exception End_of_file ->
+              (* TODO: improve error handling/reporting *)
+              raise_bad_arg ("wrong arguments: " ^ limits)
+          | exceptions, percentage ->
+              {percentage; exceptions; optional = `Both}
+        else if String.starts_with ~prefix:"percent:" arg then
+          let percentage = String.sub arg 8 (len - 8) |> String.trim in
+          match float_of_string percentage with
+          | exception Failure _ ->
+              (* TODO: improve error handling/reporting *)
+              raise_bad_arg ("wrong argument: " ^ percentage)
+          | percentage ->
+              {percentage; exceptions = 0; optional = `Percent}
+        else raise_bad_arg ("unknown option " ^ arg)
+      in
+      if threshold.exceptions < 0 then
+        raise_bad_arg "number of exceptions must be >= 0";
+      if threshold.percentage > 1. || threshold.percentage < 0. then
+        raise_bad_arg "percentage must be >= 0.0 and <= 1.0";
+      opt := Threshold {threshold; call_sites}
 
 
 type style = {opt_arg: bool; unit_pat: bool; seq: bool; binding: bool}
@@ -121,50 +120,43 @@ let update_style s =
   aux (list_of_opt s)
 
 
-type basic = {print: bool; threshold: int; call_sites: bool}
-let exported : basic ref = ref
-  ({
-    print = true;
-    call_sites = false;
-    threshold = 0
-  } : basic)
+type main_section = int section
+
+let exported : main_section ref = ref On
+
+let obj : main_section ref = ref On
+
+let typ : main_section ref = ref On
 
 
-let obj = ref
-  ({
-    print = true;
-    call_sites = false;
-    threshold = 0;
-  } : basic)
+let get_main_threshold = function
+  | Threshold {threshold; _} -> threshold
+  | _ -> 0
 
-
-let typ : basic ref = ref
-  ({
-    print = true;
-    call_sites = false;
-    threshold = 0
-  } : basic)
-
-
-let update_basic opt (flag : basic ref) = function
-    | "all" -> flag := {!flag with print = true}
-    | "nothing" -> flag := {!flag with print = false}
-    | s ->
-        flag := {!flag with print = true};
-        let threshold =
-          let len = String.length s in
-          if len > 6 && String.sub s 0 6 = "calls:" then begin
-            flag := {!flag with call_sites = true};
-            String.sub s 6 (String.length s - 6)
-          end
-          else if len > 10 && String.sub s 0 10 = "threshold:" then
-            String.sub s 10 (String.length s - 10)
-          else raise (Arg.Bad (opt ^ ": unknown option: " ^ s))
+let update_main opt (flag : main_section ref) = function
+    | "all" -> flag := On
+    | "nothing" -> flag := Off
+    | arg ->
+        let raise_bad_arg msg =
+          raise (Arg.Bad (opt ^ ": " ^ msg))
         in
-        let threshold = String.trim threshold |> int_of_string in
-        if threshold < 0 then
-          raise (Arg.Bad (opt ^ ": integer should be >= 0; Got " ^ string_of_int threshold))
-        else flag := {!flag with threshold}
+        let threshold_section =
+          let call_sites, threshold =
+            let len = String.length arg in
+            if String.starts_with ~prefix:"calls:" arg then
+              (true, String.sub arg 6 (len - 6))
+            else if String.starts_with ~prefix:"threshold:" arg then
+              (false, String.sub arg 10 (len - 10))
+            else raise_bad_arg ("unknown option: " ^ arg)
+          in
+          match String.trim threshold |> int_of_string with
+          | exception Failure _ ->
+              raise_bad_arg ("expected an integer; got; Got " ^ threshold)
+          | n when n < 0 ->
+              raise_bad_arg ("integer should be >= 0; Got " ^ string_of_int n)
+          | threshold -> {threshold; call_sites}
+        in
+        flag := Threshold threshold_section
 
 
 let verbose = ref false

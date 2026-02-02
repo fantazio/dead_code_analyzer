@@ -140,13 +140,13 @@ let rec get_deep_desc typ =
   | t -> t
 
 
-let exported (flag : Config.basic ref) loc =
+let exported (flag : Config.main_section ref) loc =
   let state = State.get_current () in
   let fn = loc.Lexing.pos_fname in
   let sourceunit = State.File_infos.get_sourceunit state.file_infos in
-  !flag.Config.print
+  Config.is_activated !flag
   && LocHash.find_set references loc
-     |> LocSet.cardinal <= !flag.Config.threshold
+     |> LocSet.cardinal <= Config.get_main_threshold !flag
   && (flag == Config.typ
     || !Config.internal
     || fn.[String.length fn - 1] = 'i'
@@ -432,20 +432,29 @@ let pretty_print_call () = let ghost = ref false in function
       ghost := true
 
 
-let percent (opt : Config.opt) base =
+let percent (opt_threshold : Config.opt_threshold) base =
   let open Config in
-  1. -. (float_of_int base) *. (1. -. opt.threshold.percentage) /. 10.
+  1. -. (float_of_int base) *. (1. -. opt_threshold.percentage) /. 10.
 
 
 (* Base pattern for reports *)
-let report s ~(opt: Config.opt) ?(extra = "Called") l continue nb_call pretty_print reporter =
+let report s ~(opt: Config.opt_section) ?(extra = "Called") l continue nb_call pretty_print reporter =
   if nb_call = 0 || l <> [] then begin
     section ~sub:(nb_call <> 0)
     @@ (if nb_call = 0 then s
-        else if Config.(opt.threshold.optional) = `Both || extra = "Called"
-        then
+        else if String.equal extra "Called" then
           Printf.sprintf "%s: %s %d time(s)" s extra nb_call
-        else Printf.sprintf "%s: at least %3.2f%% of the time" s (100. *. percent opt nb_call));
+        else match opt with
+        | Threshold {threshold; _} ->
+          if threshold.optional = `Both || extra = "Called"
+          then
+            Printf.sprintf "%s: %s %d time(s)" s extra nb_call
+          else
+            let percent = 100. *. percent threshold nb_call in
+            Printf.sprintf "%s: at least %3.2f%% of the time" s percent
+        | _ ->
+            (* TODO: better error handling *)
+            failwith "Trying to report subsections but not threshold is found");
     List.iter pretty_print l;
     if continue nb_call then
       (if l <> [] then print_endline "--------" else ()) |> print_newline |> print_newline
@@ -454,7 +463,7 @@ let report s ~(opt: Config.opt) ?(extra = "Called") l continue nb_call pretty_pr
   else (print_newline () |> separator)
 
 
-let report_basic ?folder decs title (flag:Config.basic) =
+let report_basic ?folder decs title (flag:Config.main_section) =
   let folder = match folder with
     | Some folder -> folder
     | None -> fun nb_call -> fun loc (builddir, path) acc ->
@@ -497,17 +506,17 @@ let report_basic ?folder decs title (flag:Config.basic) =
       if change fn then print_newline ();
       prloc ~fn loc;
       print_string path;
-      if call_sites <> [] && flag.Config.call_sites then
+      if call_sites <> [] && Config.call_sites_activated flag then
         print_string "    Call sites:";
       print_newline ();
-      if flag.Config.call_sites then begin
+      if Config.call_sites_activated flag then begin
         List.fast_sort compare call_sites
         |> List.iter (pretty_print_call ());
         if nb_call <> 0 then print_newline ()
       end
     in
 
-    let continue nb_call = nb_call < flag.Config.threshold in
+    let continue nb_call = nb_call < Config.get_main_threshold flag in
     let s =
       if nb_call = 0 then title
       else "ALMOST " ^ title
