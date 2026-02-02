@@ -36,7 +36,7 @@ let rec collect_export ?(mod_type = false) path u stock = function
   | Sig_value (id, ({Types.val_loc; val_type; _} as value), _)
     when not val_loc.Location.loc_ghost ->
       let should_export stock loc =
-        !DeadFlag.exported.DeadFlag.print
+        !Config.exported.Config.print
         && (* do not add the loc in decs if it belongs to a module type *)
           ( stock != decs
             || not (Hashtbl.mem in_modtype loc.Location.loc_start)
@@ -131,12 +131,12 @@ let structure_item super self i =
   let state = State.get_current () in
   let open Asttypes in
   begin match i.str_desc with
-  | Tstr_type  (_, l) when !DeadFlag.typ.DeadFlag.print ->
+  | Tstr_type  (_, l) when !Config.typ.Config.print ->
       List.iter DeadType.tstr l
   | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
       mods := txt :: !mods;
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
-  | Tstr_class l when !DeadFlag.obj.DeadFlag.print -> List.iter DeadObj.tstr l
+  | Tstr_class l when !Config.obj.Config.print -> List.iter DeadObj.tstr l
   | Tstr_include i ->
       let collect_include signature =
         let prev_last_loc = !last_loc in
@@ -177,13 +177,13 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
     register_style pat_loc (Printf.sprintf "unit pattern %s" s)
   in
   let open Asttypes in
-  if DeadType.is_unit p.pat_type && !DeadFlag.style.DeadFlag.unit_pat then begin
+  if DeadType.is_unit p.pat_type && !Config.style.Config.unit_pat then begin
     match p.pat_desc with
       | Tpat_construct _ -> ()
       | Tpat_var (_, {txt = "eta"; loc = _}, _)
         when p.pat_loc = Location.none -> ()
       | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
-      | Tpat_any -> if not !DeadFlag.underscore then u "_"
+      | Tpat_any -> if not !Config.underscore then u "_"
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
         | {pat_desc=Tpat_construct _; _} -> ()
@@ -195,7 +195,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, {Types.lbl_loc = {Location.loc_start = lab_loc; _}; _}, _) ->
-          if exported DeadFlag.typ lab_loc then
+          if exported Config.typ lab_loc then
             DeadType.collect_references lab_loc pat_loc
         )
         l
@@ -218,12 +218,12 @@ let expr super self e =
       !DeadLexiFi.ttype_of e
 
   | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
-    when exported DeadFlag.exported loc ->
+    when exported Config.exported loc ->
       LocHash.add_set references loc exp_loc
 
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
   | Texp_construct (_, {cstr_loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _)
-    when exported DeadFlag.typ loc ->
+    when exported Config.typ loc ->
       DeadType.collect_references loc exp_loc
 
   | Texp_send (e2, Tmeth_name meth) ->
@@ -234,7 +234,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if DeadFlag.(!opta.print || !optn.print) then treat_exp exp args;
+      if Config.(!opta.print || !optn.print) then treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
         when val_loc.Location.loc_ghost -> (* The node is due to lookup preparation
@@ -248,7 +248,7 @@ let expr super self e =
       end
 
   | Texp_let (_, [{vb_pat; _}], _)
-    when DeadType.is_unit vb_pat.pat_type && !DeadFlag.style.DeadFlag.seq ->
+    when DeadType.is_unit vb_pat.pat_type && !Config.style.Config.seq ->
       begin match vb_pat.pat_desc with
       | Tpat_var (id, _, _) when not (check_underscore (Ident.name id)) -> ()
       | _ ->
@@ -258,7 +258,7 @@ let expr super self e =
       end
 
   | Texp_match (_, [{c_lhs; _}], _)
-    when DeadType.is_unit c_lhs.pat_type && !DeadFlag.style.DeadFlag.seq ->
+    when DeadType.is_unit c_lhs.pat_type && !Config.style.Config.seq ->
       begin match c_lhs.pat_desc with
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
@@ -276,7 +276,7 @@ let expr super self e =
         [{vb_pat = {pat_desc = Tpat_var (id1, _, _); pat_loc = {loc_start = loc; _}; _}; _}],
         {exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _})
     when id1 = id2
-         && !DeadFlag.style.DeadFlag.binding
+         && !Config.style.Config.binding
          && check_underscore (Ident.name id1) ->
       register_style loc "let x = ... in x (=> useless binding)"
 
@@ -339,7 +339,7 @@ let kind fn =
   if not (Sys.file_exists fn) then begin
     prerr_endline ("Warning: '" ^ fn ^ "' not found");
     `Ignore
-  end else if DeadFlag.is_excluded fn then `Ignore
+  end else if Config.is_excluded fn then `Ignore
   else if Sys.is_directory fn then `Dir
   else if Filename.check_suffix fn ".cmi" then `Cmi
   else if Filename.check_suffix fn ".cmt" then `Cmt
@@ -356,9 +356,9 @@ let regabs state =
 let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
-    if !DeadFlag.exported.DeadFlag.print
-       || !DeadFlag.obj.DeadFlag.print
-       || !DeadFlag.typ.DeadFlag.print
+    if !Config.exported.Config.print
+       || !Config.obj.Config.print
+       || !Config.typ.Config.print
     then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
@@ -397,7 +397,7 @@ let assoc decs (loc1, loc2) =
     || not (is_implem fn && has_iface fn)
   in
   if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then begin
-    if (!DeadFlag.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
+    if (!Config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
       DeadCommon.LocHash.merge_set references loc2 references loc1;
     if is_iface fn1 loc1 then begin
       if is_iface fn2 loc2 then
@@ -455,7 +455,7 @@ let rec load_file state fn =
   match kind fn with
   | `Cmi when !DeadCommon.declarations ->
       last_loc := Lexing.dummy_pos;
-      if !DeadFlag.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if !Config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       match state.file_infos.cmi_infos with
       | None -> () (* TODO error handling ? *) 
@@ -465,7 +465,7 @@ let rec load_file state fn =
   | `Cmt ->
       let open Cmt_format in
       last_loc := Lexing.dummy_pos;
-      if !DeadFlag.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if !Config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       regabs state;
       match state.file_infos.cmt_infos with
@@ -483,7 +483,7 @@ let rec load_file state fn =
           ignore (collect_references.Tast_mapper.structure collect_references x);
 
           let loc_dep =
-            if !DeadFlag.exported.DeadFlag.print then
+            if !Config.exported.Config.print then
               List.rev_map
                 (fun (vd1, vd2) ->
                   (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
@@ -546,12 +546,12 @@ let analyze_opt_args () =
 
 let report_opt_args s l =
   let opt =
-    if s = "NEVER" then !DeadFlag.optn
-    else !DeadFlag.opta
+    if s = "NEVER" then !Config.optn
+    else !Config.opta
   in
   let percent = percent opt in
   let rec report_opt_args nb_call =
-    let open DeadFlag in
+    let open Config in
     let l = List.filter
         (fun (_, _, _, slot, ratio, _) -> let ratio = 1. -. ratio in
           if opt.threshold.optional = `Both then
@@ -608,7 +608,7 @@ let report_opt_args s l =
   in report_opt_args 0
 
 
-let report_unused_exported () = report_basic decs "UNUSED EXPORTED VALUES" !DeadFlag.exported
+let report_unused_exported () = report_basic decs "UNUSED EXPORTED VALUES" !Config.exported
 
 
 let report_style () =
@@ -632,9 +632,9 @@ let report_style () =
 (* Option parsing and processing *)
 let parse () =
   let update_all print () =
-    DeadFlag.(
+    Config.(
     update_style ((if print = "all" then "+" else "-") ^ "all");
-    update_basic "-E" DeadFlag.exported print;
+    update_basic "-E" Config.exported print;
     update_basic "-M" obj print;
     update_basic "-T" typ print;
     update_opt opta print;
@@ -650,18 +650,18 @@ let parse () =
   (* any extra argument can be accepted by any option using some
    * although it doesn't necessary affects the results (e.g. -O 3+4) *)
   Arg.(parse
-    [ "--exclude", String DeadFlag.exclude, "<path>  Exclude given path from research.";
+    [ "--exclude", String Config.exclude, "<path>  Exclude given path from research.";
 
       "--references",
-        String (fun dir -> DeadFlag.directories := dir :: !DeadFlag.directories),
+        String (fun dir -> Config.directories := dir :: !Config.directories),
         "<path>  Consider given path to collect references.";
 
-      "--underscore", Unit DeadFlag.set_underscore, " Show names starting with an underscore";
+      "--underscore", Unit Config.set_underscore, " Show names starting with an underscore";
 
-      "--verbose", Unit DeadFlag.set_verbose, " Verbose mode (ie., show scanned files)";
-      "-v", Unit DeadFlag.set_verbose, " See --verbose";
+      "--verbose", Unit Config.set_verbose, " Verbose mode (ie., show scanned files)";
+      "-v", Unit Config.set_verbose, " See --verbose";
 
-      "--internal", Unit DeadFlag.set_internal,
+      "--internal", Unit Config.set_internal,
         " Keep internal uses as exported values uses when the interface is given. \
           This is the default behaviour when only the implementation is found";
 
@@ -670,7 +670,7 @@ let parse () =
       "--all", Unit (update_all "all"), " Enable all warnings";
       "-A", Unit (update_all "all"), " See --all";
 
-      "-E", String (DeadFlag.update_basic "-E" DeadFlag.exported),
+      "-E", String (Config.update_basic "-E" Config.exported),
         "<display>  Enable/Disable unused exported values warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -678,11 +678,11 @@ let parse () =
           \t\"threshold:<integer>\": report elements used up to the given integer\n\
           \t\"calls:<integer>\": like threshold + show call sites";
 
-      "-M", String (DeadFlag.update_basic "-M" DeadFlag.obj),
+      "-M", String (Config.update_basic "-M" Config.obj),
         "<display>  Enable/Disable unused methods warnings.\n    \
         See option -E for the syntax of <display>";
 
-      "-Oa", String (DeadFlag.update_opt DeadFlag.opta),
+      "-Oa", String (Config.update_opt Config.opta),
         "<display>  Enable/Disable optional arguments always used warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -695,11 +695,11 @@ let parse () =
           must be respected for the element to be reported\n\
           \t\"percent:<float>\": percent of valid cases to be reported";
 
-      "-On", String (DeadFlag.update_opt DeadFlag.optn),
+      "-On", String (Config.update_opt Config.optn),
         "<display>  Enable/Disable optional arguments never used warnings.\n    \
         See option -Oa for the syntax of <display>";
 
-      "-S", String (DeadFlag.update_style),
+      "-S", String (Config.update_style),
         " Enable/Disable coding style warnings.\n    \
         Delimiters '+' and '-' determine if the following option is to enable or disable.\n    \
         Options (can be used together):\n\
@@ -709,7 +709,7 @@ let parse () =
           \tunit: unit pattern\n\
           \tall: bind & opt & seq & unit";
 
-      "-T", String (DeadFlag.update_basic "-T" DeadFlag.typ),
+      "-T", String (Config.update_basic "-T" Config.typ),
         "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
         See option -E for the syntax of <display>";
 
@@ -724,27 +724,27 @@ try
     parse ();
     let run_on_references_only state =
       DeadCommon.declarations := false;
-      let oldstyle = !DeadFlag.style in
-      DeadFlag.update_style "-all";
-      List.fold_left load_file state !DeadFlag.directories
+      let oldstyle = !Config.style in
+      Config.update_style "-all";
+      List.fold_left load_file state !Config.directories
       |> ignore;
-      DeadFlag.style := oldstyle
+      Config.style := oldstyle
     in
     run_on_references_only (State.get_current ());
 
     Printf.eprintf " [DONE]\n\n%!";
 
-    let open DeadFlag in
+    let open Config in
     !DeadLexiFi.prepare_report DeadType.decs;
-    if !DeadFlag.exported.print                 then  report_unused_exported ();
+    if !Config.exported.print                 then  report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if !DeadFlag.opta.DeadFlag.print || !DeadFlag.optn.DeadFlag.print
+    if !Config.opta.Config.print || !Config.optn.Config.print
     then  begin
         let tmp = analyze_opt_args () in
-        if !DeadFlag.opta.print then  report_opt_args "ALWAYS" tmp;
-        if !DeadFlag.optn.print then  report_opt_args "NEVER" tmp end;
-    if [@warning "-44"] DeadFlag.(!style.opt_arg || !style.unit_pat
+        if !Config.opta.print then  report_opt_args "ALWAYS" tmp;
+        if !Config.optn.print then  report_opt_args "NEVER" tmp end;
+    if [@warning "-44"] Config.(!style.opt_arg || !style.unit_pat
     || !style.seq || !style.binding)            then  report_style ();
 
     if !bad_files <> [] then begin

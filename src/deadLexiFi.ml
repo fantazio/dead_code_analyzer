@@ -123,7 +123,7 @@ let () =
           hashtbl_find_list str strin
           |> List.iter
             (fun loc ->
-              if exported DeadFlag.exported loc then
+              if exported Config.exported loc then
                 LocHash.add_set references loc pos
             )
         )
@@ -163,7 +163,7 @@ let () =
             else get_type s (pos - 1)
           in
           List.iter
-            ( if exported DeadFlag.typ loc then LocHash.add_set references loc
+            ( if exported Config.typ loc then LocHash.add_set references loc
               else ignore
             )
             (hashtbl_find_list dyn_used (get_type path (String.length path - 1)))

@@ -7,10 +7,10 @@
 (*                                                                         *)
 (***************************************************************************)
 
-type threshold = {exceptions: int; percentage: float; optional: [`Percent | `Both]}
+type threshold = {percentage: float; exceptions: int; optional: [`Percent | `Both]}
 
 
-type opt = {print: bool; call_sites: bool; threshold: threshold}
+type opt = {print: bool; threshold: threshold; call_sites: bool}
 let opta = ref
   {
     print = false;
@@ -121,7 +121,7 @@ let update_style s =
   aux (list_of_opt s)
 
 
-type basic = {print: bool; call_sites: bool; threshold: int}
+type basic = {print: bool; threshold: int; call_sites: bool}
 let exported : basic ref = ref
   ({
     print = true;

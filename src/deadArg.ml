@@ -162,7 +162,7 @@ let rec bind loc expr =
             DeadType.check_style pat_type expr.exp_loc.Location.loc_start
       in
       let register_optional_param = function
-        | Asttypes.Optional s when DeadFlag.(!optn.print || !opta.print) ->
+        | Asttypes.Optional s when Config.(!optn.print || !opta.print) ->
             let (opts, next) = VdNode.get loc in
             VdNode.update loc (s :: opts, next)
         | _ -> ()
@@ -181,7 +181,7 @@ let rec bind loc expr =
       | _ -> ()
     )
   | exp_desc
-    when (!DeadFlag.optn.print || !DeadFlag.opta.print)
+    when (!Config.optn.print || !Config.opta.print)
          && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
       let ( let$ ) x f = Option.iter f x in
       let$ loc2 =
@@ -198,6 +198,6 @@ let rec bind loc expr =
                 (********   WRAPPING  ********)
 
 let wrap f x y =
-  if DeadFlag.(!optn.print || !opta.print) then f x y else ()
+  if Config.(!optn.print || !opta.print) then f x y else ()
 
 let register_uses val_loc args = wrap register_uses val_loc args
