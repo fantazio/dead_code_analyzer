@@ -482,7 +482,7 @@ let report () =
 
 
 let wrap f x =
-  if !Config.obj.print then f x else ()
+  if Config.(is_activated !obj) then f x else ()
 
 let collect_export path u stock ?obj ?cltyp loc =
   wrap (collect_export path u stock ~obj ~cltyp) loc

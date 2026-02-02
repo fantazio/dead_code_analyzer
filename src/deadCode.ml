@@ -36,7 +36,7 @@ let rec collect_export ?(mod_type = false) path u stock = function
   | Sig_value (id, ({Types.val_loc; val_type; _} as value), _)
     when not val_loc.Location.loc_ghost ->
       let should_export stock loc =
-        !Config.exported.Config.print
+        Config.(is_activated !exported)
         && (* do not add the loc in decs if it belongs to a module type *)
           ( stock != decs
             || not (Hashtbl.mem in_modtype loc.Location.loc_start)
@@ -131,12 +131,12 @@ let structure_item super self i =
   let state = State.get_current () in
   let open Asttypes in
   begin match i.str_desc with
-  | Tstr_type  (_, l) when !Config.typ.Config.print ->
+  | Tstr_type  (_, l) when Config.(is_activated !typ) ->
       List.iter DeadType.tstr l
   | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
       mods := txt :: !mods;
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
-  | Tstr_class l when !Config.obj.Config.print -> List.iter DeadObj.tstr l
+  | Tstr_class l when Config.(is_activated !obj) -> List.iter DeadObj.tstr l
   | Tstr_include i ->
       let collect_include signature =
         let prev_last_loc = !last_loc in
@@ -234,7 +234,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if Config.(!opta.print || !optn.print) then treat_exp exp args;
+      if Config.(has_activated [!opta; !optn]) then treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
         when val_loc.Location.loc_ghost -> (* The node is due to lookup preparation
@@ -356,10 +356,7 @@ let regabs state =
 let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
-    if !Config.exported.Config.print
-       || !Config.obj.Config.print
-       || !Config.typ.Config.print
-    then
+    if Config.(has_activated [!exported; !obj; !typ]) then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
           State.File_infos.get_sourceunit state.file_infos
@@ -483,7 +480,7 @@ let rec load_file state fn =
           ignore (collect_references.Tast_mapper.structure collect_references x);
 
           let loc_dep =
-            if !Config.exported.Config.print then
+            if Config.(is_activated !exported) then
               List.rev_map
                 (fun (vd1, vd2) ->
                   (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
@@ -549,15 +546,22 @@ let report_opt_args s l =
     if s = "NEVER" then !Config.optn
     else !Config.opta
   in
-  let percent = percent opt in
   let rec report_opt_args nb_call =
     let open Config in
     let l = List.filter
         (fun (_, _, _, slot, ratio, _) -> let ratio = 1. -. ratio in
-          if opt.threshold.optional = `Both then
-            ratio >= opt.threshold.percentage && check_length nb_call slot
-          else ratio >= percent nb_call
-            && (opt.threshold.percentage >= 1. || ratio < (percent (nb_call - 1))))
+          match  opt with
+          | Off ->
+              (* TODO: better error handling *)
+              failwith "Trying to report a deactivated opt args section"
+          | On -> ratio >= 1. && nb_call = 0
+          | Threshold {threshold = {percentage; optional = `Both; _}; _} ->
+              ratio >= percentage && check_length nb_call slot
+          | Threshold {threshold; _} ->
+              let percent = percent threshold in
+
+              ratio >= percent nb_call
+              && (threshold.percentage >= 1. || ratio < (percent (nb_call - 1))))
       @@ List.map
         (fun (builddir, loc, lab, slot) ->
           let l = if s = "NEVER" then slot.with_val else slot.without_val in
@@ -586,18 +590,22 @@ let report_opt_args s l =
       prloc ~fn loc; print_string ("?" ^ lab);
       if ratio <> 0. then begin
         Printf.printf "   (%d/%d calls)" (total - List.length slot) total;
-        if opt.call_sites then print_string "  Exceptions:"
+        if Config.call_sites_activated opt then print_string "  Exceptions:"
       end;
       print_newline ();
-      if opt.call_sites then begin
+      if Config.call_sites_activated opt then begin
         List.iter (pretty_print_call ()) slot;
         if nb_call <> 0 then print_newline ()
       end
     in
 
     let continue nb_call =
-      opt.threshold.optional = `Both && nb_call < opt.threshold.exceptions
-      || opt.threshold.optional = `Percent && percent nb_call > opt.threshold.percentage
+      match opt with
+      | Off | On -> false
+      | Threshold {threshold = {optional = `Both; exceptions; _}; _} ->
+          nb_call < exceptions
+      | Threshold {threshold; _} ->
+          percent threshold nb_call > threshold.percentage
     in
     let s =
       (if nb_call > 0 then "OPTIONAL ARGUMENTS: ALMOST "
@@ -634,9 +642,9 @@ let parse () =
   let update_all print () =
     Config.(
     update_style ((if print = "all" then "+" else "-") ^ "all");
-    update_basic "-E" Config.exported print;
-    update_basic "-M" obj print;
-    update_basic "-T" typ print;
+    update_main "-E" Config.exported print;
+    update_main "-M" obj print;
+    update_main "-T" typ print;
     update_opt opta print;
     update_opt optn print)
   in
@@ -670,7 +678,7 @@ let parse () =
       "--all", Unit (update_all "all"), " Enable all warnings";
       "-A", Unit (update_all "all"), " See --all";
 
-      "-E", String (Config.update_basic "-E" Config.exported),
+      "-E", String (Config.update_main "-E" Config.exported),
         "<display>  Enable/Disable unused exported values warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -678,7 +686,7 @@ let parse () =
           \t\"threshold:<integer>\": report elements used up to the given integer\n\
           \t\"calls:<integer>\": like threshold + show call sites";
 
-      "-M", String (Config.update_basic "-M" Config.obj),
+      "-M", String (Config.update_main "-M" Config.obj),
         "<display>  Enable/Disable unused methods warnings.\n    \
         See option -E for the syntax of <display>";
 
@@ -709,7 +717,7 @@ let parse () =
           \tunit: unit pattern\n\
           \tall: bind & opt & seq & unit";
 
-      "-T", String (Config.update_basic "-T" Config.typ),
+      "-T", String (Config.update_main "-T" Config.typ),
         "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
         See option -E for the syntax of <display>";
 
@@ -734,18 +742,18 @@ try
 
     Printf.eprintf " [DONE]\n\n%!";
 
-    let open Config in
     !DeadLexiFi.prepare_report DeadType.decs;
-    if !Config.exported.print                 then  report_unused_exported ();
+    if Config.(is_activated !exported) then report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if !Config.opta.Config.print || !Config.optn.Config.print
-    then  begin
-        let tmp = analyze_opt_args () in
-        if !Config.opta.print then  report_opt_args "ALWAYS" tmp;
-        if !Config.optn.print then  report_opt_args "NEVER" tmp end;
-    if [@warning "-44"] Config.(!style.opt_arg || !style.unit_pat
-    || !style.seq || !style.binding)            then  report_style ();
+    if Config.(has_activated [!opta; !optn]) then begin
+      let tmp = analyze_opt_args () in
+      if Config.(is_activated !opta) then  report_opt_args "ALWAYS" tmp;
+      if Config.(is_activated !optn) then  report_opt_args "NEVER" tmp
+    end;
+    if [@warning "-44"]
+      Config.(!style.opt_arg || !style.unit_pat || !style.seq || !style.binding)
+    then report_style ();
 
     if !bad_files <> [] then begin
       let oc = open_out_bin "remove_bad_files.sh" in
