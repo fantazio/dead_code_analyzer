@@ -84,7 +84,7 @@ let is_ghost loc =
   || loc.Lexing.pos_fname = _none || loc.Lexing.pos_fname = ""
 
 
-let check_underscore name = not !Config.underscore || name.[0] <> '_'
+let check_underscore name = Config.config.underscore || name.[0] <> '_'
 
 
 let hashtbl_find_list hashtbl key = Hashtbl.find_all hashtbl key
@@ -147,8 +147,8 @@ let exported (flag : Config.main_section ref) loc =
   Config.is_activated !flag
   && LocHash.find_set references loc
      |> LocSet.cardinal <= Config.get_main_threshold !flag
-  && (flag == Config.typ
-    || !Config.internal
+  && (flag == Config.config.typ
+    || Config.config.internal
     || fn.[String.length fn - 1] = 'i'
     || sourceunit <> Utils.unit fn
     || not (file_exists (fn ^ "i")))
@@ -522,7 +522,7 @@ let report_basic ?folder decs title (flag:Config.main_section) =
       if nb_call = 0 then title
       else "ALMOST " ^ title
     in
-    report s ~opt:(!Config.opta) l continue nb_call pretty_print reportn
+    report s ~opt:(!Config.(config.opta)) l continue nb_call pretty_print reportn
 
   in reportn 0
 

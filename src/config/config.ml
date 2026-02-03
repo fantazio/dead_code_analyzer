@@ -27,14 +27,77 @@ let call_sites_activated = function
   | Threshold {call_sites; _} -> call_sites
   | _ -> false
 
+
+type main_section = int section
+
 type opt_threshold =
   | Percent of float
   | Both of (int * float)
 
 type opt_section = opt_threshold section
 
-let opta = ref Off
-let optn = ref Off
+type style = {opt_arg: bool; unit_pat: bool; seq: bool; binding: bool}
+
+type t =
+  { mutable verbose : bool
+  ; mutable internal : bool
+  ; mutable underscore : bool
+  ; mutable directories : string list
+  ; exported : main_section ref
+  ; obj : main_section ref
+  ; typ : main_section ref
+  ; opta : opt_section ref
+  ; optn : opt_section ref
+  ; style : style ref
+  }
+
+let config =
+  { verbose = false
+  ; internal = false
+  ; underscore = false
+  ; directories = []
+  ; exported = ref On
+  ; obj = ref On
+  ; typ = ref On
+  ; opta = ref Off
+  ; optn = ref Off
+  ; style = ref
+      { opt_arg = false
+      ; unit_pat = false
+      ; seq = false
+      ; binding = false
+      }
+  }
+
+let get_main_threshold = function
+  | Threshold {threshold; _} -> threshold
+  | _ -> 0
+
+let update_main opt (flag : main_section ref) = function
+    | "all" -> flag := On
+    | "nothing" -> flag := Off
+    | arg ->
+        let raise_bad_arg msg =
+          raise (Arg.Bad (opt ^ ": " ^ msg))
+        in
+        let threshold_section =
+          let call_sites, threshold =
+            let len = String.length arg in
+            if String.starts_with ~prefix:"calls:" arg then
+              (true, String.sub arg 6 (len - 6))
+            else if String.starts_with ~prefix:"threshold:" arg then
+              (false, String.sub arg 10 (len - 10))
+            else raise_bad_arg ("unknown option: " ^ arg)
+          in
+          match String.trim threshold |> int_of_string with
+          | exception Failure _ ->
+              raise_bad_arg ("expected an integer; got; Got " ^ threshold)
+          | n when n < 0 ->
+              raise_bad_arg ("integer should be >= 0; Got " ^ string_of_int n)
+          | threshold -> {threshold; call_sites}
+        in
+        flag := Threshold threshold_section
+
 
 let update_opt opt = function
   | "all" -> opt := On
@@ -85,26 +148,18 @@ let update_opt opt = function
       opt := Threshold {threshold; call_sites}
 
 
-type style = {opt_arg: bool; unit_pat: bool; seq: bool; binding: bool}
-let style = ref
-  {
-    opt_arg = false;
-    unit_pat = false;
-    seq = false;
-    binding = false;
-  }
-
 let update_style s =
+  let style = config.style in
   let rec aux = function
-    | (b, "opt")::l -> style := {!style with opt_arg = b};
+    | (b, "opt")::l ->  style := {!style with opt_arg = b};
         aux l
     | (b, "unit")::l -> style := {!style with unit_pat = b};
         aux l
-    | (b, "seq")::l -> style := {!style with seq = b};
+    | (b, "seq")::l ->  style := {!style with seq = b};
         aux l
     | (b, "bind")::l -> style := {!style with binding = b};
         aux l
-    | (b, "all")::l -> style := {unit_pat = b; opt_arg = b; seq = b; binding = b};
+    | (b, "all")::l ->  style := {unit_pat = b; opt_arg = b; seq = b; binding = b};
         aux l
     | (_, "")::l -> aux l
     | (_, s)::_ -> raise (Arg.Bad ("-S: unknown option: " ^ s))
@@ -123,55 +178,12 @@ let update_style s =
   in
   aux (list_of_opt s)
 
-
-type main_section = int section
-
-let exported : main_section ref = ref On
-
-let obj : main_section ref = ref On
-
-let typ : main_section ref = ref On
-
-
-let get_main_threshold = function
-  | Threshold {threshold; _} -> threshold
-  | _ -> 0
-
-let update_main opt (flag : main_section ref) = function
-    | "all" -> flag := On
-    | "nothing" -> flag := Off
-    | arg ->
-        let raise_bad_arg msg =
-          raise (Arg.Bad (opt ^ ": " ^ msg))
-        in
-        let threshold_section =
-          let call_sites, threshold =
-            let len = String.length arg in
-            if String.starts_with ~prefix:"calls:" arg then
-              (true, String.sub arg 6 (len - 6))
-            else if String.starts_with ~prefix:"threshold:" arg then
-              (false, String.sub arg 10 (len - 10))
-            else raise_bad_arg ("unknown option: " ^ arg)
-          in
-          match String.trim threshold |> int_of_string with
-          | exception Failure _ ->
-              raise_bad_arg ("expected an integer; got; Got " ^ threshold)
-          | n when n < 0 ->
-              raise_bad_arg ("integer should be >= 0; Got " ^ string_of_int n)
-          | threshold -> {threshold; call_sites}
-        in
-        flag := Threshold threshold_section
-
-
-let verbose = ref false
-let set_verbose () = verbose := true
+let set_verbose () = config.verbose <- true
 
 (* Print name starting with '_' *)
-let underscore = ref true
-let set_underscore () = underscore := false
+let set_underscore () = config.underscore <- true
 
-let internal = ref false
-let set_internal () = internal := true
+let set_internal () = config.internal <- true
 
 
 let normalize_path s =
@@ -200,6 +212,3 @@ let exclude, is_excluded =
   let exclude s = Hashtbl.replace tbl (normalize_path s) () in
   let is_excluded s = Hashtbl.mem tbl (normalize_path s) in
   exclude, is_excluded
-
-
-let directories : string list ref = ref []
