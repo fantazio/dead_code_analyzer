@@ -212,3 +212,86 @@ let exclude, is_excluded =
   let exclude s = Hashtbl.replace tbl (normalize_path s) () in
   let is_excluded s = Hashtbl.mem tbl (normalize_path s) in
   exclude, is_excluded
+
+
+(* Option parsing and processing *)
+let parse_cli process_path =
+  let update_all print () =
+    update_style ((if print = "all" then "+" else "-") ^ "all");
+    update_main "-E" config.exported print;
+    update_main "-M" config.obj print;
+    update_main "-T" config.typ print;
+    update_opt config.opta print;
+    update_opt config.optn print
+  in
+
+  (* any extra argument can be accepted by any option using some
+   * although it doesn't necessary affects the results (e.g. -O 3+4) *)
+  Arg.(parse
+    [ "--exclude", String exclude, "<path>  Exclude given path from research.";
+
+      "--references",
+        String (fun dir -> config.directories <- dir :: config.directories),
+        "<path>  Consider given path to collect references.";
+
+      "--underscore", Unit set_underscore, " Show names starting with an underscore";
+
+      "--verbose", Unit set_verbose, " Verbose mode (ie., show scanned files)";
+      "-v", Unit set_verbose, " See --verbose";
+
+      "--internal", Unit set_internal,
+        " Keep internal uses as exported values uses when the interface is given. \
+          This is the default behaviour when only the implementation is found";
+
+      "--nothing", Unit (update_all "nothing"), " Disable all warnings";
+      "-a", Unit (update_all "nothing"), " See --nothing";
+      "--all", Unit (update_all "all"), " Enable all warnings";
+      "-A", Unit (update_all "all"), " See --all";
+
+      "-E", String (update_main "-E" config.exported),
+        "<display>  Enable/Disable unused exported values warnings.\n    \
+        <display> can be:\n\
+          \tall\n\
+          \tnothing\n\
+          \t\"threshold:<integer>\": report elements used up to the given integer\n\
+          \t\"calls:<integer>\": like threshold + show call sites";
+
+      "-M", String (update_main "-M" config.obj),
+        "<display>  Enable/Disable unused methods warnings.\n    \
+        See option -E for the syntax of <display>";
+
+      "-Oa", String (update_opt config.opta),
+        "<display>  Enable/Disable optional arguments always used warnings.\n    \
+        <display> can be:\n\
+          \tall\n\
+          \tnothing\n\
+          \t<threshold>\n\
+          \t\"calls:<threshold>\" like <threshold> + show call sites\n    \
+        <threshold> can be:\n\
+          \t\"both:<integer>,<float>\": both the number max of exceptions \
+          (given through the integer) and the percent of valid cases (given as a float) \
+          must be respected for the element to be reported\n\
+          \t\"percent:<float>\": percent of valid cases to be reported";
+
+      "-On", String (update_opt config.optn),
+        "<display>  Enable/Disable optional arguments never used warnings.\n    \
+        See option -Oa for the syntax of <display>";
+
+      "-S", String (update_style),
+        " Enable/Disable coding style warnings.\n    \
+        Delimiters '+' and '-' determine if the following option is to enable or disable.\n    \
+        Options (can be used together):\n\
+          \tbind: useless binding\n\
+          \topt: optional arg in arg\n\
+          \tseq: use sequence\n\
+          \tunit: unit pattern\n\
+          \tall: bind & opt & seq & unit";
+
+      "-T", String (update_main "-T" config.typ),
+        "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
+        See option -E for the syntax of <display>";
+
+    ]
+    (Printf.eprintf "Scanning files...\n%!";
+     process_path)
+    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:"))

@@ -102,3 +102,7 @@ val exclude : string -> unit
 val is_excluded : string -> bool
 (** [is_excluded path] indicates if [path] is excluded from the analysis.
     Excluding a path is done with [exclude path]. *)
+
+val parse_cli : (string -> unit)  -> unit
+(** [parse_cli process_path] updates the [config] according to the command line
+    arguments and processes each input path using [process_path] *)
