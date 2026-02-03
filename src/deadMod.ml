@@ -70,9 +70,9 @@ let expr m = match m.mod_desc with
         let is_obj = String.contains x '#' in
         let is_type = not is_obj && DeadType.is_type x in
         let relevant_report_enabled =
-          if is_obj then Config.(is_activated !obj)
-          else if is_type then exported Config.typ loc
-          else exported Config.exported loc
+          if is_obj then Config.(is_activated !(config.obj))
+          else if is_type then exported Config.config.typ loc
+          else exported Config.config.exported loc
         in
         let value_is_expected_by_modtype = List.mem x l1 || l1 = [] in
         if value_is_expected_by_modtype && relevant_report_enabled then
@@ -86,6 +86,6 @@ let expr m = match m.mod_desc with
 
 let expr m =
   if [@warning "-44"]
-  Config.(has_activated [!exported; !typ; !obj]) then
+  Config.(has_activated [!(config.exported); !(config.typ); !(config.obj)]) then
     expr m
   else ()

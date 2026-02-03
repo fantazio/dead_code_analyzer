@@ -27,15 +27,6 @@ val call_sites_activated : _ section -> bool
 
 type main_section = int section
 
-val exported : main_section ref
-(** Configuration for the unused exported values *)
-
-val obj : main_section ref
-(** Configuration for the methods *)
-
-val typ : main_section ref
-(** Configuration for the constructors/record fields *)
-
 val update_main : string -> main_section ref -> string -> unit
 (** [update_basic sec_arg section arg] updates the configuration of [section] according
     to the [arg] specification. [sec_arg] is the command line argument
@@ -57,12 +48,6 @@ type opt_threshold =
 
 type opt_section = opt_threshold section
 
-val opta : opt_section ref
-(** Configuration for the optional arguments always used *)
-
-val optn : opt_section ref
-(** Configuration for the optional arguments never used *)
-
 val update_opt : opt_section ref -> string -> unit
 (** [update_opt section arg] updates the configuration of [section] according
     to the [arg] specification *)
@@ -76,28 +61,37 @@ type style =
   ; binding: bool (** Report [let x = ... in x (=> useless binding)] *)
   }
 
-val style : style ref
-(** Configuration for the stylistic issues *)
 
 val update_style : string -> unit
 (** [update_style arg] updates [!style] according to the [arg] specification *)
 
 (** {2 General configuration} *)
 
-val verbose : bool ref
-(** Display additional information during the analaysis. [false] by default. *)
+type t =
+  { mutable verbose : bool (** Display additional information during the analaysis *)
+  ; mutable internal : bool (** Keep track of internal uses for exported values *)
+  ; mutable underscore : bool (** Keep track of elements with names starting with [_] *)
+  ; mutable directories : string list (** Paths to explore for references only *)
+  ; exported : main_section ref (** Configuration for the unused exported values *)
+  ; obj : main_section ref (** Configuration for the methods *)
+  ; typ : main_section ref (** Configuration for the constructors/record fields *)
+  ; opta : opt_section ref (** Configuration for the optional arguments always used *)
+  ; optn : opt_section ref (** Configuration for the optional arguments never used *)
+  ; style : style ref (** Configuration for the stylistic issues *)
+  }
+
+val config : t
+(** Configuration for the analysis.
+    By default [verbose], [internal], and [underscore] are [false]
+    By default [exported],  [obj], and [typ] are [On].
+    By default [opta], [optn] are [Off].
+    By default all of the fileds in [style] are false. *)
 
 val set_verbose : unit -> unit
 (** Set [verbose] to [true] *)
 
-val underscore : bool ref
-(** Keep track of elements with names starting with [_]. [false] by default. *)
-
 val set_underscore : unit -> unit
 (** Set [underscore] to [true] *)
-
-val internal : bool ref
-(** Keep track of internal uses for exported values. [false] by default. *)
 
 val set_internal : unit -> unit
 (** Set [internal] to [true] *)
@@ -108,6 +102,3 @@ val exclude : string -> unit
 val is_excluded : string -> bool
 (** [is_excluded path] indicates if [path] is excluded from the analysis.
     Excluding a path is done with [exclude path]. *)
-
-val directories : string list ref
-(** Paths to explore for references only *)
