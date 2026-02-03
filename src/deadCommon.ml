@@ -433,8 +433,11 @@ let pretty_print_call () = let ghost = ref false in function
 
 
 let percent (opt_threshold : Config.opt_threshold) base =
-  let open Config in
-  1. -. (float_of_int base) *. (1. -. opt_threshold.percentage) /. 10.
+  let percentage =
+    match opt_threshold with
+    | Percent p | Both (_, p) -> p
+  in
+  1. -. (float_of_int base) *. (1. -. percentage) /. 10.
 
 
 (* Base pattern for reports *)
@@ -445,11 +448,9 @@ let report s ~(opt: Config.opt_section) ?(extra = "Called") l continue nb_call p
         else if String.equal extra "Called" then
           Printf.sprintf "%s: %s %d time(s)" s extra nb_call
         else match opt with
-        | Threshold {threshold; _} ->
-          if threshold.optional = `Both || extra = "Called"
-          then
+        | Threshold {threshold = Both _; _} ->
             Printf.sprintf "%s: %s %d time(s)" s extra nb_call
-          else
+        | Threshold {threshold; _} ->
             let percent = 100. *. percent threshold nb_call in
             Printf.sprintf "%s: at least %3.2f%% of the time" s percent
         | _ ->
