@@ -555,13 +555,13 @@ let report_opt_args s l =
               (* TODO: better error handling *)
               failwith "Trying to report a deactivated opt args section"
           | On -> ratio >= 1. && nb_call = 0
-          | Threshold {threshold = {percentage; optional = `Both; _}; _} ->
+          | Threshold {threshold = Both (_, percentage); _} ->
               ratio >= percentage && check_length nb_call slot
-          | Threshold {threshold; _} ->
+          | Threshold {threshold = Percent percentage as threshold; _} ->
               let percent = percent threshold in
 
               ratio >= percent nb_call
-              && (threshold.percentage >= 1. || ratio < (percent (nb_call - 1))))
+              && (percentage >= 1. || ratio < (percent (nb_call - 1))))
       @@ List.map
         (fun (builddir, loc, lab, slot) ->
           let l = if s = "NEVER" then slot.with_val else slot.without_val in
@@ -602,10 +602,10 @@ let report_opt_args s l =
     let continue nb_call =
       match opt with
       | Off | On -> false
-      | Threshold {threshold = {optional = `Both; exceptions; _}; _} ->
+      | Threshold {threshold = Both (exceptions, _); _} ->
           nb_call < exceptions
-      | Threshold {threshold; _} ->
-          percent threshold nb_call > threshold.percentage
+      | Threshold {threshold = Percent percentage as threshold; _} ->
+          percent threshold nb_call > percentage
     in
     let s =
       (if nb_call > 0 then "OPTIONAL ARGUMENTS: ALMOST "

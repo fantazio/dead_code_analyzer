@@ -48,14 +48,12 @@ val get_main_threshold : int section -> int
 (** {3 Optional argument sections} *)
 
 type opt_threshold =
-  { percentage: float
-      (** Subsections for opt args always/never used except at most
-          [percentage] of the time will be reported *)
-  ; exceptions: int
-      (** Only optional arguments always/never used except at most
-          [exceptions] times will be reported in the subsections *)
-  ; optional: [`Percent | `Both] (** Threshold mode *)
-  }
+  | Percent of float
+      (** Subsections for opt args always/never used at least [float] percent of
+      the time will be reported *)
+  | Both of (int * float)
+      (** Subsections for opt args always/never used with at most [int]
+          exceptions and at least [float] percent of the time will be reported *)
 
 type opt_section = opt_threshold section
 

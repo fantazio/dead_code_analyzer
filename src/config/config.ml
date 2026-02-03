@@ -28,10 +28,8 @@ let call_sites_activated = function
   | _ -> false
 
 type opt_threshold =
-  { percentage: float
-  ; exceptions: int
-  ; optional: [`Percent | `Both]
-  }
+  | Percent of float
+  | Both of (int * float)
 
 type opt_section = opt_threshold section
 
@@ -52,6 +50,13 @@ let update_opt opt = function
           (true, arg)
         else (false, arg)
       in
+      let check_percentage p =
+        if p > 1. || p < 0. then
+          raise_bad_arg "percentage must be >= 0.0 and <= 1.0"
+      in
+      let check_nb_exceptions n =
+        if n < 0 then raise_bad_arg "number of exceptions must be >= 0"
+      in
       let threshold =
         let len = String.length arg in
         if String.starts_with ~prefix:"both:" arg then
@@ -62,8 +67,10 @@ let update_opt opt = function
           | exception End_of_file ->
               (* TODO: improve error handling/reporting *)
               raise_bad_arg ("wrong arguments: " ^ limits)
-          | exceptions, percentage ->
-              {percentage; exceptions; optional = `Both}
+          | (nb_exceptions, percentage) as limits ->
+              check_percentage percentage;
+              check_nb_exceptions nb_exceptions;
+              Both limits
         else if String.starts_with ~prefix:"percent:" arg then
           let percentage = String.sub arg 8 (len - 8) |> String.trim in
           match float_of_string percentage with
@@ -71,13 +78,10 @@ let update_opt opt = function
               (* TODO: improve error handling/reporting *)
               raise_bad_arg ("wrong argument: " ^ percentage)
           | percentage ->
-              {percentage; exceptions = 0; optional = `Percent}
+              check_percentage percentage;
+              Percent percentage
         else raise_bad_arg ("unknown option " ^ arg)
       in
-      if threshold.exceptions < 0 then
-        raise_bad_arg "number of exceptions must be >= 0";
-      if threshold.percentage > 1. || threshold.percentage < 0. then
-        raise_bad_arg "percentage must be >= 0.0 and <= 1.0";
       opt := Threshold {threshold; call_sites}
 
 
