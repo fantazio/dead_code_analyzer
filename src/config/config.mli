@@ -2,56 +2,21 @@
 
 (** {2 Sections configuration} *)
 
-type 'threshold section =
-  | Off (** Disabled *)
-  | On (** Enabled *)
-  | Threshold of 'threshold threshold_section (** Enabled with threshold *)
+module Sections = Sections
 
-and 'threshold threshold_section =
-  { threshold: 'threshold
-    (** Report subsections for elements used up to [!threshold] *)
-  ; call_sites: bool (** Print call sites in the [!threshold]-related subsections *)
-  }
-
-val is_activated : _ section -> bool
+val is_activated : _ Sections.section -> bool
 (** [is_activated sec] returns `true` if the section must be reported *)
 
-val has_activated : _ section list -> bool
+val has_activated : _ Sections.section list -> bool
 (** [has_activated secs] returns `true` if one of the sections must be reported *)
 
-val call_sites_activated : _ section -> bool
+val call_sites_activated : _ Sections.section -> bool
 (** [call_sites_activated sec] returns `true` if call sites must be reported in
     thresholded subsections *)
 
-(** {3 Main sections} *)
-
-type main_section = int section
-
-val get_main_threshold : int section -> int
+val get_main_threshold : int Sections.section -> int
 (** [get_main_threshold main_sec] returns the threshold if
     [main_sec = Threshold _], [0] otherwise. *)
-
-(** {3 Optional argument sections} *)
-
-type opt_threshold =
-  | Percent of float
-      (** Subsections for opt args always/never used at least [float] percent of
-      the time will be reported *)
-  | Both of (int * float)
-      (** Subsections for opt args always/never used with at most [int]
-          exceptions and at least [float] percent of the time will be reported *)
-
-type opt_section = opt_threshold section
-
-(** {3 Stylistic issues section} *)
-
-type style =
-  { opt_arg: bool (** Report [val f : _ -> (... -> (... -> ?_:_ -> ...) -> ...] *)
-  ; unit_pat: bool (** Report unit pattern *)
-  ; seq: bool (** Report [let () = ... in ... (=> use sequence)] *)
-  ; binding: bool (** Report [let x = ... in x (=> useless binding)] *)
-  }
-
 
 val update_style : string -> unit
 (** [update_style arg] updates [!style] according to the [arg] specification *)
@@ -63,20 +28,13 @@ type t =
   ; internal : bool (** Keep track of internal uses for exported values *)
   ; underscore : bool (** Keep track of elements with names starting with [_] *)
   ; directories : string list (** Paths to explore for references only *)
-  ; exported : main_section (** Configuration for the unused exported values *)
-  ; obj : main_section (** Configuration for the methods *)
-  ; typ : main_section (** Configuration for the constructors/record fields *)
-  ; opta : opt_section (** Configuration for the optional arguments always used *)
-  ; optn : opt_section (** Configuration for the optional arguments never used *)
-  ; style : style (** Configuration for the stylistic issues *)
+  ; sections : Sections.t (** Config for the different report sections *)
   }
 
 val config : t ref
 (** Configuration for the analysis.
     By default [verbose], [internal], and [underscore] are [false]
-    By default [exported],  [obj], and [typ] are [On].
-    By default [opta], [optn] are [Off].
-    By default all of the fileds in [style] are false. *)
+    By default [sections] is [Sections.default] *)
 
 val is_excluded : string -> bool
 (** [is_excluded path] indicates if [path] is excluded from the analysis.

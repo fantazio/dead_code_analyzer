@@ -118,12 +118,13 @@ let () =
 
   DeadLexiFi.prepare_report :=
     (fun decs ->
+     let sections = !Config.config.sections in
       List.iter
         (fun (strin, pos) ->
           hashtbl_find_list str strin
           |> List.iter
             (fun loc ->
-              if exported !Config.config.exported loc then
+              if exported sections.exported_values loc then
                 LocHash.add_set references loc pos
             )
         )
@@ -163,7 +164,7 @@ let () =
             else get_type s (pos - 1)
           in
           List.iter
-            ( if exported ~is_type:true !Config.config.typ loc then LocHash.add_set references loc
+            ( if exported ~is_type:true sections.types loc then LocHash.add_set references loc
               else ignore
             )
             (hashtbl_find_list dyn_used (get_type path (String.length path - 1)))

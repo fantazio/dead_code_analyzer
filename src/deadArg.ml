@@ -154,6 +154,7 @@ let register_uses val_loc args =
   register_uses builddir val_loc args
 
 let rec bind loc expr =
+  let sections = !Config.config.sections in
   match expr.exp_desc with
   | Texp_function (params, body) -> (
       let check_param_style = function
@@ -162,7 +163,7 @@ let rec bind loc expr =
             DeadType.check_style pat_type expr.exp_loc.Location.loc_start
       in
       let register_optional_param = function
-        | Asttypes.Optional s when Config.(has_activated [!config.optn; !config.opta]) ->
+        | Asttypes.Optional s when Config.has_activated [sections.optn; sections.opta] ->
             let (opts, next) = VdNode.get loc in
             VdNode.update loc (s :: opts, next)
         | _ -> ()
@@ -181,7 +182,7 @@ let rec bind loc expr =
       | _ -> ()
     )
   | exp_desc
-    when Config.(has_activated [!config.optn; !config.opta])
+    when Config.has_activated [sections.optn; sections.opta]
          && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
       let ( let$ ) x f = Option.iter f x in
       let$ loc2 =
@@ -198,6 +199,7 @@ let rec bind loc expr =
                 (********   WRAPPING  ********)
 
 let wrap f x y =
-  if Config.(has_activated [!config.optn; !config.opta]) then f x y else ()
+  let sections = !Config.config.sections in
+  if Config.has_activated [sections.optn; sections.opta] then f x y else ()
 
 let register_uses val_loc args = wrap register_uses val_loc args
