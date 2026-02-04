@@ -36,7 +36,7 @@ let rec collect_export ?(mod_type = false) path u stock = function
   | Sig_value (id, ({Types.val_loc; val_type; _} as value), _)
     when not val_loc.Location.loc_ghost ->
       let should_export stock loc =
-        Config.(is_activated !(config.exported))
+        Config.(is_activated !config.exported)
         && (* do not add the loc in decs if it belongs to a module type *)
           ( stock != decs
             || not (Hashtbl.mem in_modtype loc.Location.loc_start)
@@ -131,12 +131,12 @@ let structure_item super self i =
   let state = State.get_current () in
   let open Asttypes in
   begin match i.str_desc with
-  | Tstr_type  (_, l) when Config.(is_activated !(config.typ)) ->
+  | Tstr_type  (_, l) when Config.(is_activated !config.typ) ->
       List.iter DeadType.tstr l
   | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
       mods := txt :: !mods;
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
-  | Tstr_class l when Config.(is_activated !(config.obj)) -> List.iter DeadObj.tstr l
+  | Tstr_class l when Config.(is_activated !config.obj) -> List.iter DeadObj.tstr l
   | Tstr_include i ->
       let collect_include signature =
         let prev_last_loc = !last_loc in
@@ -177,13 +177,13 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
     register_style pat_loc (Printf.sprintf "unit pattern %s" s)
   in
   let open Asttypes in
-  if DeadType.is_unit p.pat_type && !Config.(config.style).unit_pat then begin
+  if DeadType.is_unit p.pat_type && !Config.config.style.unit_pat then begin
     match p.pat_desc with
       | Tpat_construct _ -> ()
       | Tpat_var (_, {txt = "eta"; loc = _}, _)
         when p.pat_loc = Location.none -> ()
       | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
-      | Tpat_any -> if Config.config.underscore then u "_"
+      | Tpat_any -> if !Config.config.underscore then u "_"
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
         | {pat_desc=Tpat_construct _; _} -> ()
@@ -195,7 +195,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, {Types.lbl_loc = {Location.loc_start = lab_loc; _}; _}, _) ->
-          if exported Config.config.typ lab_loc then
+           if exported ~is_type:true !Config.config.typ lab_loc then
             DeadType.collect_references lab_loc pat_loc
         )
         l
@@ -218,12 +218,12 @@ let expr super self e =
       !DeadLexiFi.ttype_of e
 
   | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
-    when exported Config.config.exported loc ->
+    when exported !Config.config.exported loc ->
       LocHash.add_set references loc exp_loc
 
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
   | Texp_construct (_, {cstr_loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _)
-    when exported Config.config.typ loc ->
+    when exported ~is_type:true !Config.config.typ loc ->
       DeadType.collect_references loc exp_loc
 
   | Texp_send (e2, Tmeth_name meth) ->
@@ -234,7 +234,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if Config.(has_activated [!(config.opta); !(config.optn)]) then treat_exp exp args;
+      if Config.(has_activated [!config.opta; !config.optn]) then treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
         when val_loc.Location.loc_ghost -> (* The node is due to lookup preparation
@@ -248,7 +248,7 @@ let expr super self e =
       end
 
   | Texp_let (_, [{vb_pat; _}], _)
-    when DeadType.is_unit vb_pat.pat_type && !Config.(config.style).seq ->
+    when DeadType.is_unit vb_pat.pat_type && !Config.config.style.seq ->
       begin match vb_pat.pat_desc with
       | Tpat_var (id, _, _) when not (check_underscore (Ident.name id)) -> ()
       | _ ->
@@ -258,7 +258,7 @@ let expr super self e =
       end
 
   | Texp_match (_, [{c_lhs; _}], _)
-    when DeadType.is_unit c_lhs.pat_type && !Config.(config.style).seq ->
+    when DeadType.is_unit c_lhs.pat_type && !Config.config.style.seq ->
       begin match c_lhs.pat_desc with
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
@@ -276,7 +276,7 @@ let expr super self e =
         [{vb_pat = {pat_desc = Tpat_var (id1, _, _); pat_loc = {loc_start = loc; _}; _}; _}],
         {exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _})
     when id1 = id2
-         && !Config.(config.style).binding
+         && !Config.config.style.binding
          && check_underscore (Ident.name id1) ->
       register_style loc "let x = ... in x (=> useless binding)"
 
@@ -356,7 +356,7 @@ let regabs state =
 let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
-    if Config.(has_activated [!(config.exported); !(config.obj); !(config.typ)]) then
+    if Config.(has_activated [!config.exported; !config.obj; !config.typ]) then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
           State.File_infos.get_sourceunit state.file_infos
@@ -394,7 +394,7 @@ let assoc decs (loc1, loc2) =
     || not (is_implem fn && has_iface fn)
   in
   if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then begin
-    if (Config.config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
+    if (!Config.config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
       DeadCommon.LocHash.merge_set references loc2 references loc1;
     if is_iface fn1 loc1 then begin
       if is_iface fn2 loc2 then
@@ -452,7 +452,7 @@ let rec load_file state fn =
   match kind fn with
   | `Cmi when !DeadCommon.declarations ->
       last_loc := Lexing.dummy_pos;
-      if Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if !Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       match state.file_infos.cmi_infos with
       | None -> () (* TODO error handling ? *) 
@@ -462,7 +462,7 @@ let rec load_file state fn =
   | `Cmt ->
       let open Cmt_format in
       last_loc := Lexing.dummy_pos;
-      if Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if !Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       regabs state;
       match state.file_infos.cmt_infos with
@@ -480,7 +480,7 @@ let rec load_file state fn =
           ignore (collect_references.Tast_mapper.structure collect_references x);
 
           let loc_dep =
-            if Config.(is_activated !(config.exported)) then
+            if Config.(is_activated !config.exported) then
               List.rev_map
                 (fun (vd1, vd2) ->
                   (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
@@ -543,8 +543,8 @@ let analyze_opt_args () =
 
 let report_opt_args s l =
   let opt =
-    if s = "NEVER" then !Config.(config.optn)
-    else !Config.(config.opta)
+    if s = "NEVER" then !Config.config.optn
+    else !Config.config.opta
   in
   let rec report_opt_args nb_call =
     let open Config in
@@ -617,7 +617,7 @@ let report_opt_args s l =
 
 
 let report_unused_exported () =
-  report_basic decs "UNUSED EXPORTED VALUES" !Config.(config.exported)
+  report_basic decs "UNUSED EXPORTED VALUES" !Config.config.exported
 
 
 let report_style () =
@@ -652,27 +652,27 @@ try
     parse ();
     let run_on_references_only state =
       DeadCommon.declarations := false;
-      let oldstyle = !Config.(config.style) in
+      let oldstyle = !Config.config.style in
       Config.update_style "-all";
-      List.fold_left load_file state Config.config.directories
+      List.fold_left load_file state !Config.config.directories
       |> ignore;
-      Config.config.style := oldstyle
+      Config.(config := {!config with style = oldstyle})
     in
     run_on_references_only (State.get_current ());
 
     Printf.eprintf " [DONE]\n\n%!";
 
     !DeadLexiFi.prepare_report DeadType.decs;
-    if Config.(is_activated !(config.exported)) then report_unused_exported ();
+    if Config.(is_activated !config.exported) then report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if Config.(has_activated [!(config.opta); !(config.optn)]) then begin
+    if Config.(has_activated [!config.opta; !config.optn]) then begin
       let tmp = analyze_opt_args () in
-      if Config.(is_activated !(config.opta)) then  report_opt_args "ALWAYS" tmp;
-      if Config.(is_activated !(config.optn)) then  report_opt_args "NEVER" tmp
+      if Config.(is_activated !config.opta) then  report_opt_args "ALWAYS" tmp;
+      if Config.(is_activated !config.optn) then  report_opt_args "NEVER" tmp
     end;
     if [@warning "-44"]
-      Config.(!(config.style).opt_arg || !(config.style).unit_pat || !(config.style).seq || !(config.style).binding)
+      Config.(!config.style.opt_arg || !config.style.unit_pat || !config.style.seq || !config.style.binding)
     then report_style ();
 
     if !bad_files <> [] then begin

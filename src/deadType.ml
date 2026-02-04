@@ -102,7 +102,7 @@ let collect_references loc exp_loc =
 (* Look for bad style typing *)
 let rec check_style t loc =
   let state = State.get_current() in
-  if !Config.(config.style).opt_arg then
+  if !Config.config.style.opt_arg then
     match get_deep_desc t with
       | Tarrow (lab, _, t, _) -> begin
           match lab with
@@ -168,13 +168,13 @@ let tstr typ =
 
 
 let report () =
-  report_basic decs "UNUSED CONSTRUCTORS/RECORD FIELDS" !Config.(config.typ)
+  report_basic decs "UNUSED CONSTRUCTORS/RECORD FIELDS" !Config.config.typ
 
 
                 (********   WRAPPING  ********)
 
 let wrap f x =
-  if Config.(is_activated !(config.typ)) then f x else ()
+  if Config.(is_activated !config.typ) then f x else ()
 
 let collect_export path u stock t = wrap (collect_export path u stock) t
 let tstr typ = wrap tstr typ

@@ -39,29 +39,29 @@ type opt_section = opt_threshold section
 type style = {opt_arg: bool; unit_pat: bool; seq: bool; binding: bool}
 
 type t =
-  { mutable verbose : bool
-  ; mutable internal : bool
-  ; mutable underscore : bool
-  ; mutable directories : string list
-  ; exported : main_section ref
-  ; obj : main_section ref
-  ; typ : main_section ref
-  ; opta : opt_section ref
-  ; optn : opt_section ref
-  ; style : style ref
+  { verbose : bool
+  ; internal : bool
+  ; underscore : bool
+  ; directories : string list
+  ; exported : main_section
+  ; obj : main_section
+  ; typ : main_section
+  ; opta : opt_section
+  ; optn : opt_section
+  ; style : style
   }
 
-let config =
+let config = ref
   { verbose = false
   ; internal = false
   ; underscore = false
   ; directories = []
-  ; exported = ref On
-  ; obj = ref On
-  ; typ = ref On
-  ; opta = ref Off
-  ; optn = ref Off
-  ; style = ref
+  ; exported = On
+  ; obj = On
+  ; typ = On
+  ; opta = Off
+  ; optn = Off
+  ; style =
       { opt_arg = false
       ; unit_pat = false
       ; seq = false
@@ -73,9 +73,9 @@ let get_main_threshold = function
   | Threshold {threshold; _} -> threshold
   | _ -> 0
 
-let update_main opt (flag : main_section ref) = function
-    | "all" -> flag := On
-    | "nothing" -> flag := Off
+let parse_main opt = function
+    | "all" -> On
+    | "nothing" -> Off
     | arg ->
         let raise_bad_arg msg =
           raise (Arg.Bad (opt ^ ": " ^ msg))
@@ -96,12 +96,24 @@ let update_main opt (flag : main_section ref) = function
               raise_bad_arg ("integer should be >= 0; Got " ^ string_of_int n)
           | threshold -> {threshold; call_sites}
         in
-        flag := Threshold threshold_section
+        Threshold threshold_section
+
+let update_exported cli_opt arg =
+  let exported = parse_main cli_opt arg in
+  config := {!config with exported}
+
+let update_obj cli_opt arg =
+  let obj = parse_main cli_opt arg in
+  config := {!config with obj}
+
+let update_typ cli_opt arg =
+  let typ = parse_main cli_opt arg in
+  config := {!config with typ}
 
 
-let update_opt opt = function
-  | "all" -> opt := On
-  | "nothing" -> opt := Off
+let parse_opt = function
+  | "all" -> On
+  | "nothing" -> Off
   | arg ->
       let raise_bad_arg msg =
         (* TODO: improve error reporting *)
@@ -145,21 +157,38 @@ let update_opt opt = function
               Percent percentage
         else raise_bad_arg ("unknown option " ^ arg)
       in
-      opt := Threshold {threshold; call_sites}
+      Threshold {threshold; call_sites}
+
+let update_opta arg =
+  let opta = parse_opt arg in
+  config := {!config with opta}
+
+let update_optn arg =
+  let optn = parse_opt arg in
+  config := {!config with optn}
 
 
 let update_style s =
-  let style = config.style in
   let rec aux = function
-    | (b, "opt")::l ->  style := {!style with opt_arg = b};
+    | (b, "opt")::l ->
+        let style = {!config.style with opt_arg = b} in
+        config := {!config with style};
         aux l
-    | (b, "unit")::l -> style := {!style with unit_pat = b};
+    | (b, "unit")::l ->
+        let style = {!config.style with unit_pat = b} in
+        config := {!config with style};
         aux l
-    | (b, "seq")::l ->  style := {!style with seq = b};
+    | (b, "seq")::l ->
+        let style = {!config.style with seq = b} in
+        config := {!config with style};
         aux l
-    | (b, "bind")::l -> style := {!style with binding = b};
+    | (b, "bind")::l ->
+        let style = {!config.style with binding = b} in
+        config := {!config with style};
         aux l
-    | (b, "all")::l ->  style := {unit_pat = b; opt_arg = b; seq = b; binding = b};
+    | (b, "all")::l ->
+        let style = {unit_pat = b; opt_arg = b; seq = b; binding = b} in
+        config := {!config with style};
         aux l
     | (_, "")::l -> aux l
     | (_, s)::_ -> raise (Arg.Bad ("-S: unknown option: " ^ s))
@@ -178,12 +207,12 @@ let update_style s =
   in
   aux (list_of_opt s)
 
-let set_verbose () = config.verbose <- true
+let set_verbose () = config := {!config with verbose = true}
 
 (* Print name starting with '_' *)
-let set_underscore () = config.underscore <- true
+let set_underscore () = config := {!config with underscore = true}
 
-let set_internal () = config.internal <- true
+let set_internal () = config := {!config with internal = true}
 
 
 let normalize_path s =
@@ -218,11 +247,11 @@ let exclude, is_excluded =
 let parse_cli process_path =
   let update_all print () =
     update_style ((if print = "all" then "+" else "-") ^ "all");
-    update_main "-E" config.exported print;
-    update_main "-M" config.obj print;
-    update_main "-T" config.typ print;
-    update_opt config.opta print;
-    update_opt config.optn print
+    update_exported "-E" print;
+    update_obj "-M" print;
+    update_typ "-T" print;
+    update_opta print;
+    update_optn print
   in
 
   (* any extra argument can be accepted by any option using some
@@ -231,7 +260,11 @@ let parse_cli process_path =
     [ "--exclude", String exclude, "<path>  Exclude given path from research.";
 
       "--references",
-        String (fun dir -> config.directories <- dir :: config.directories),
+        String
+          (fun dir ->
+            let directories = dir :: !config.directories in
+            config := {!config with directories}
+          ),
         "<path>  Consider given path to collect references.";
 
       "--underscore", Unit set_underscore, " Show names starting with an underscore";
@@ -248,7 +281,7 @@ let parse_cli process_path =
       "--all", Unit (update_all "all"), " Enable all warnings";
       "-A", Unit (update_all "all"), " See --all";
 
-      "-E", String (update_main "-E" config.exported),
+      "-E", String (update_exported "-E"),
         "<display>  Enable/Disable unused exported values warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -256,11 +289,11 @@ let parse_cli process_path =
           \t\"threshold:<integer>\": report elements used up to the given integer\n\
           \t\"calls:<integer>\": like threshold + show call sites";
 
-      "-M", String (update_main "-M" config.obj),
+      "-M", String (update_obj "-M"),
         "<display>  Enable/Disable unused methods warnings.\n    \
         See option -E for the syntax of <display>";
 
-      "-Oa", String (update_opt config.opta),
+      "-Oa", String (update_opta),
         "<display>  Enable/Disable optional arguments always used warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -273,7 +306,7 @@ let parse_cli process_path =
           must be respected for the element to be reported\n\
           \t\"percent:<float>\": percent of valid cases to be reported";
 
-      "-On", String (update_opt config.optn),
+      "-On", String (update_optn),
         "<display>  Enable/Disable optional arguments never used warnings.\n    \
         See option -Oa for the syntax of <display>";
 
@@ -287,7 +320,7 @@ let parse_cli process_path =
           \tunit: unit pattern\n\
           \tall: bind & opt & seq & unit";
 
-      "-T", String (update_main "-T" config.typ),
+      "-T", String (update_typ "-T"),
         "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
         See option -E for the syntax of <display>";
 
