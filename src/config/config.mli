@@ -28,11 +28,17 @@ val update_style : string -> unit
 
 (** {2 General configuration} *)
 
+module StringSet : Set.S with type elt = String.t
+
 type t =
   { verbose : bool (** Display additional information during the analaysis *)
   ; internal : bool (** Keep track of internal uses for exported values *)
   ; underscore : bool (** Keep track of elements with names starting with [_] *)
-  ; directories : string list (** Paths to explore for references only *)
+  ; paths_to_analyze : StringSet.t
+      (** Paths found in the command line and considered for analysis *)
+  ; excluded_paths : StringSet.t
+      (** Paths to exclude from the analysis *)
+  ; references_paths : StringSet.t (** Paths to explore for references only *)
   ; sections : Sections.t (** Config for the different report sections *)
   }
 
@@ -43,7 +49,7 @@ val config : t ref
 
 val is_excluded : string -> bool
 (** [is_excluded path] indicates if [path] is excluded from the analysis.
-    Excluding a path is done with [exclude path]. *)
+    Excluding a path is done with the --exclude command line argument. *)
 
 val parse_cli : (string -> unit)  -> unit
 (** [parse_cli process_path] updates the [config] according to the command line

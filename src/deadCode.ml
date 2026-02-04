@@ -663,7 +663,10 @@ try
       DeadCommon.declarations := false;
       let oldsections = !Config.config.sections in
       Config.update_style "-all";
-      List.fold_left load_file state !Config.config.directories
+      Config.StringSet.fold
+        (fun path state -> load_file state path)
+        !Config.config.references_paths
+        state
       |> ignore;
       Config.(config := {!config with sections = oldsections})
     in
