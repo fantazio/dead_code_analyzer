@@ -17,11 +17,15 @@ let call_sites_activated = Sections.call_sites_activated
 
 let get_main_threshold = Sections.get_main_threshold
 
+module StringSet = Set.Make(String)
+
 type t =
   { verbose : bool
   ; internal : bool
   ; underscore : bool
-  ; directories : string list
+  ; paths_to_analyze : StringSet.t
+  ; excluded_paths : StringSet.t
+  ; references_paths : StringSet.t
   ; sections : Sections.t
   }
 
@@ -29,7 +33,9 @@ let config = ref
   { verbose = false
   ; internal = false
   ; underscore = false
-  ; directories = []
+  ; paths_to_analyze = StringSet.empty
+  ; excluded_paths = StringSet.empty
+  ; references_paths = StringSet.empty
   ; sections = Sections.default
   }
 
@@ -94,11 +100,14 @@ let normalize_path s =
   in
   concat_path (norm_path (List.rev (split_path s)))
 
-let exclude, is_excluded =
-  let tbl = Hashtbl.create 10 in
-  let exclude s = Hashtbl.replace tbl (normalize_path s) () in
-  let is_excluded s = Hashtbl.mem tbl (normalize_path s) in
-  exclude, is_excluded
+let exclude path =
+  let path = normalize_path path in
+  let excluded_paths = StringSet.add path !config.excluded_paths in
+  config := {!config with excluded_paths}
+
+let is_excluded path=
+  let path = normalize_path path in
+  StringSet.mem path !config.excluded_paths
 
 
 (* Option parsing and processing *)
@@ -112,6 +121,12 @@ let parse_cli process_path =
     update_optn print
   in
 
+  let process_path path =
+    let paths_to_analyze = StringSet.add path !config.paths_to_analyze in
+    config := {!config with paths_to_analyze};
+    process_path path
+  in
+
   (* any extra argument can be accepted by any option using some
    * although it doesn't necessary affects the results (e.g. -O 3+4) *)
   Arg.(parse
@@ -119,9 +134,9 @@ let parse_cli process_path =
 
       "--references",
         String
-          (fun dir ->
-            let directories = dir :: !config.directories in
-            config := {!config with directories}
+          (fun path ->
+            let references_paths = StringSet.add path !config.references_paths in
+            config := {!config with references_paths}
           ),
         "<path>  Consider given path to collect references.";
 
