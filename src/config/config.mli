@@ -7,8 +7,13 @@ module Sections = Sections
 val is_activated : _ Sections.section -> bool
 (** [is_activated sec] returns `true` if the section must be reported *)
 
-val has_activated : _ Sections.section list -> bool
-(** [has_activated secs] returns `true` if one of the sections must be reported *)
+val has_main_section_activated : unit -> bool
+(** [has_main_section_activated ()] indicates if any of the main sections must
+    be reported *)
+
+val has_opt_args_section_activated : unit -> bool
+(** [has_opt_args_section_activated ()] indicates if any of the optional
+    arguments section must be reported *)
 
 val call_sites_activated : _ Sections.section -> bool
 (** [call_sites_activated sec] returns `true` if call sites must be reported in

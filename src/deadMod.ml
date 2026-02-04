@@ -86,9 +86,5 @@ let expr m = match m.mod_desc with
                 (********   WRAPPING  ********)
 
 let expr m =
-  let sections = !Config.config.sections in
-  if [@warning "-44"]
-    Config.has_activated [sections.exported_values; sections.types; sections.methods]
-  then
-    expr m
+  if [@warning "-44"] Config.has_main_section_activated () then expr m
   else ()

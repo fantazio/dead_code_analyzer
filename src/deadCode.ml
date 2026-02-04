@@ -238,7 +238,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if Config.has_activated [sections.opta; sections.optn] then
+      if Config.has_opt_args_section_activated () then
         treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
@@ -361,9 +361,8 @@ let regabs state =
 let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
-    let sections = !Config.config.sections in
     if
-      Config.has_activated [sections.exported_values; sections.methods; sections.types]
+      Config.has_main_section_activated ()
     then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
@@ -677,7 +676,7 @@ try
     if Config.is_activated sections.exported_values then report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if Config.has_activated [sections.opta; sections.optn] then begin
+    if Config.has_opt_args_section_activated () then begin
       let tmp = analyze_opt_args () in
       if Config.is_activated sections.opta then  report_opt_args "ALWAYS" tmp;
       if Config.is_activated sections.optn then  report_opt_args "NEVER" tmp

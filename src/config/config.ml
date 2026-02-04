@@ -33,6 +33,14 @@ let config = ref
   ; sections = Sections.default
   }
 
+let has_main_section_activated () =
+  let sections = !config.sections in
+  has_activated [sections.exported_values; sections.methods; sections.types]
+
+let has_opt_args_section_activated () =
+  let sections = !config.sections in
+  has_activated [sections.opta; sections.optn]
+
 let update_exported_values arg =
   let sections = Sections.update_exported_values arg !config.sections in
   config := {!config with sections}
