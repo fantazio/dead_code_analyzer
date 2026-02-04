@@ -140,7 +140,7 @@ let rec get_deep_desc typ =
   | t -> t
 
 
-let exported ?(is_type = false) (flag : Config.main_section) loc =
+let exported ?(is_type = false) (flag : Config.Sections.main_section) loc =
   let state = State.get_current () in
   let fn = loc.Lexing.pos_fname in
   let sourceunit = State.File_infos.get_sourceunit state.file_infos in
@@ -432,7 +432,7 @@ let pretty_print_call () = let ghost = ref false in function
       ghost := true
 
 
-let percent (opt_threshold : Config.opt_threshold) base =
+let percent (opt_threshold : Config.Sections.opt_args_threshold) base =
   let percentage =
     match opt_threshold with
     | Percent p | Both (_, p) -> p
@@ -441,7 +441,9 @@ let percent (opt_threshold : Config.opt_threshold) base =
 
 
 (* Base pattern for reports *)
-let report s ~(opt: Config.opt_section) ?(extra = "Called") l continue nb_call pretty_print reporter =
+let report s ~(opt: Config.Sections.opt_args_section) ?(extra = "Called") l
+           continue nb_call pretty_print reporter
+=
   if nb_call = 0 || l <> [] then begin
     section ~sub:(nb_call <> 0)
     @@ (if nb_call = 0 then s
@@ -464,7 +466,7 @@ let report s ~(opt: Config.opt_section) ?(extra = "Called") l continue nb_call p
   else (print_newline () |> separator)
 
 
-let report_basic ?folder decs title (flag:Config.main_section) =
+let report_basic ?folder decs title (flag:Config.Sections.main_section) =
   let folder = match folder with
     | Some folder -> folder
     | None -> fun nb_call -> fun loc (builddir, path) acc ->
@@ -522,7 +524,7 @@ let report_basic ?folder decs title (flag:Config.main_section) =
       if nb_call = 0 then title
       else "ALMOST " ^ title
     in
-    report s ~opt:(!Config.config.opta) l continue nb_call pretty_print reportn
+    report s ~opt:(!Config.config.sections.opta) l continue nb_call pretty_print reportn
 
   in reportn 0
 
