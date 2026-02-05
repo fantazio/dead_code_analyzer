@@ -2,15 +2,16 @@
 
 module File_infos = File_infos
 
-type t = {
-  file_infos : File_infos.t; (** Info about the file being analyzed *)
-}
+type t =
+  { config : Config.t (** Configuration of the analysis *)
+  ; file_infos : File_infos.t (** Info about the file being analyzed *)
+  }
 
-val empty : t (** The empty state *)
+val init : Config.t -> t
+(** [init config] initial for an analysis configured by [config] *)
 
-val init : string -> (t, string) result
-(** [init cmti_file] initialize a state to analyze [cmti_file].
-    See [File_infos.init] for error cases. *)
+val update_config : Config.t -> t -> t
+(** [update_config config state] changes the analysis configuration *)
 
 val change_file : t -> string -> (t, string) result
 (** [cahnge_file t cmti_file] prepare the analysis to move on to [cmti_file].

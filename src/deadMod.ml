@@ -70,7 +70,8 @@ let expr m = match m.mod_desc with
         let is_obj = String.contains x '#' in
         let is_type = not is_obj && DeadType.is_type x in
         let relevant_report_enabled =
-          let sections = !Config.config.sections in
+          let state = State.get_current () in
+          let sections = state.config.sections in
           if is_obj then Config.is_activated sections.methods
           else if is_type then exported ~is_type sections.types loc
           else exported sections.exported_values loc
@@ -86,5 +87,7 @@ let expr m = match m.mod_desc with
                 (********   WRAPPING  ********)
 
 let expr m =
-  if [@warning "-44"] Config.has_main_section_activated () then expr m
+  let state = State.get_current () in
+  if [@warning "-44"] Config.has_main_section_activated state.config then
+    expr m
   else ()

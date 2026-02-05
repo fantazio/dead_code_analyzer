@@ -118,7 +118,8 @@ let () =
 
   DeadLexiFi.prepare_report :=
     (fun decs ->
-     let sections = !Config.config.sections in
+      let state = State.get_current () in
+      let sections = state.config.sections in
       List.iter
         (fun (strin, pos) ->
           hashtbl_find_list str strin

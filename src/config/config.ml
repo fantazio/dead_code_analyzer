@@ -29,7 +29,7 @@ type t =
   ; sections : Sections.t
   }
 
-let config = ref
+let default_config =
   { verbose = false
   ; internal = false
   ; underscore = false
@@ -39,44 +39,44 @@ let config = ref
   ; sections = Sections.default
   }
 
-let has_main_section_activated () =
-  let sections = !config.sections in
+let has_main_section_activated config =
+  let sections = config.sections in
   has_activated [sections.exported_values; sections.methods; sections.types]
 
-let has_opt_args_section_activated () =
-  let sections = !config.sections in
+let has_opt_args_section_activated config =
+  let sections = config.sections in
   has_activated [sections.opta; sections.optn]
 
-let update_exported_values arg =
-  let sections = Sections.update_exported_values arg !config.sections in
-  config := {!config with sections}
+let update_exported_values arg config =
+  let sections = Sections.update_exported_values arg config.sections in
+  {config with sections}
 
-let update_methods arg =
-  let sections = Sections.update_methods arg !config.sections in
-  config := {!config with sections}
+let update_methods arg config =
+  let sections = Sections.update_methods arg config.sections in
+  {config with sections}
 
-let update_types arg =
-  let sections = Sections.update_types arg !config.sections in
-  config := {!config with sections}
+let update_types arg config =
+  let sections = Sections.update_types arg config.sections in
+  {config with sections}
 
-let update_opta arg =
-  let sections = Sections.update_opta arg !config.sections in
-  config := {!config with sections}
+let update_opta arg config =
+  let sections = Sections.update_opta arg config.sections in
+  {config with sections}
 
-let update_optn arg =
-  let sections = Sections.update_optn arg !config.sections in
-  config := {!config with sections}
+let update_optn arg config =
+  let sections = Sections.update_optn arg config.sections in
+  {config with sections}
 
-let update_style arg =
-  let sections = Sections.update_style arg !config.sections in
-  config := {!config with sections}
+let update_style arg config =
+  let sections = Sections.update_style arg config.sections in
+  {config with sections}
 
-let set_verbose () = config := {!config with verbose = true}
+let set_verbose config = {config with verbose = true}
 
 (* Print name starting with '_' *)
-let set_underscore () = config := {!config with underscore = true}
+let set_underscore config = {config with underscore = true}
 
-let set_internal () = config := {!config with internal = true}
+let set_internal config = {config with internal = true}
 
 
 let normalize_path s =
@@ -100,61 +100,75 @@ let normalize_path s =
   in
   concat_path (norm_path (List.rev (split_path s)))
 
-let exclude path =
+let exclude path config =
   let path = normalize_path path in
-  let excluded_paths = StringSet.add path !config.excluded_paths in
-  config := {!config with excluded_paths}
+  let excluded_paths = StringSet.add path config.excluded_paths in
+  {config with excluded_paths}
 
-let is_excluded path=
+let is_excluded path config =
   let path = normalize_path path in
-  StringSet.mem path !config.excluded_paths
+  StringSet.mem path config.excluded_paths
 
+let add_reference_path path config =
+  let references_paths = StringSet.add path config.references_paths in
+  {config with references_paths}
 
-(* Option parsing and processing *)
-let parse_cli process_path =
-  let update_all print () =
-    update_style ((if print = "all" then "+" else "-") ^ "all");
-    update_exported_values print;
-    update_methods print;
-    update_types print;
-    update_opta print;
-    update_optn print
+let add_path_to_analyze path config =
+  let paths_to_analyze = StringSet.add path config.paths_to_analyze in
+  {config with paths_to_analyze}
+
+(* Command line parsing *)
+let parse_cli () =
+  let config = ref default_config in
+  let update_config f x = config := f x !config in
+
+  let update_config_unit f () = config := f !config in
+
+  let update_all arg config =
+    config
+    |> update_style ((if arg = "all" then "+" else "-") ^ "all")
+    |> update_exported_values arg
+    |> update_methods arg
+    |> update_types arg
+    |> update_opta arg
+    |> update_optn arg
   in
 
-  let process_path path =
-    let paths_to_analyze = StringSet.add path !config.paths_to_analyze in
-    config := {!config with paths_to_analyze};
-    process_path path
-  in
-
-  (* any extra argument can be accepted by any option using some
-   * although it doesn't necessary affects the results (e.g. -O 3+4) *)
   Arg.(parse
-    [ "--exclude", String exclude, "<path>  Exclude given path from research.";
+    [ "--exclude",
+        String (update_config exclude),
+        "<path>  Exclude given path from research.";
 
       "--references",
-        String
-          (fun path ->
-            let references_paths = StringSet.add path !config.references_paths in
-            config := {!config with references_paths}
-          ),
+        String (update_config add_reference_path),
         "<path>  Consider given path to collect references.";
 
-      "--underscore", Unit set_underscore, " Show names starting with an underscore";
+      "--underscore",
+        Unit (update_config_unit set_underscore),
+        " Show names starting with an underscore";
 
-      "--verbose", Unit set_verbose, " Verbose mode (ie., show scanned files)";
-      "-v", Unit set_verbose, " See --verbose";
+      "--verbose",
+        Unit (update_config_unit set_verbose),
+        " Verbose mode (ie., show scanned files)";
+      "-v", Unit (update_config_unit set_verbose), " See --verbose";
 
-      "--internal", Unit set_internal,
+      "--internal",
+        Unit (update_config_unit set_internal),
         " Keep internal uses as exported values uses when the interface is given. \
           This is the default behaviour when only the implementation is found";
 
-      "--nothing", Unit (update_all "nothing"), " Disable all warnings";
-      "-a", Unit (update_all "nothing"), " See --nothing";
-      "--all", Unit (update_all "all"), " Enable all warnings";
-      "-A", Unit (update_all "all"), " See --all";
+      "--nothing",
+        Unit (update_config_unit (update_all "nothing")),
+        " Disable all warnings";
+      "-a", Unit (update_config_unit (update_all "nothing")), " See --nothing";
 
-      "-E", String update_exported_values,
+      "--all",
+        Unit (update_config_unit (update_all "all")),
+        " Enable all warnings";
+      "-A", Unit (update_config_unit (update_all "all")), " See --all";
+
+      "-E",
+        String (update_config update_exported_values),
         "<display>  Enable/Disable unused exported values warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -162,11 +176,13 @@ let parse_cli process_path =
           \t\"threshold:<integer>\": report elements used up to the given integer\n\
           \t\"calls:<integer>\": like threshold + show call sites";
 
-      "-M", String update_methods,
+      "-M",
+        String (update_config update_methods),
         "<display>  Enable/Disable unused methods warnings.\n    \
         See option -E for the syntax of <display>";
 
-      "-Oa", String update_opta,
+      "-Oa",
+        String (update_config update_opta),
         "<display>  Enable/Disable optional arguments always used warnings.\n    \
         <display> can be:\n\
           \tall\n\
@@ -179,11 +195,13 @@ let parse_cli process_path =
           must be respected for the element to be reported\n\
           \t\"percent:<float>\": percent of valid cases to be reported";
 
-      "-On", String update_optn,
+      "-On",
+        String (update_config update_optn),
         "<display>  Enable/Disable optional arguments never used warnings.\n    \
         See option -Oa for the syntax of <display>";
 
-      "-S", String update_style,
+      "-S",
+        String (update_config update_style),
         " Enable/Disable coding style warnings.\n    \
         Delimiters '+' and '-' determine if the following option is to enable or disable.\n    \
         Options (can be used together):\n\
@@ -193,11 +211,14 @@ let parse_cli process_path =
           \tunit: unit pattern\n\
           \tall: bind & opt & seq & unit";
 
-      "-T", String update_types,
+      "-T",
+        String (update_config update_types),
         "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
         See option -E for the syntax of <display>";
 
     ]
     (Printf.eprintf "Scanning files...\n%!";
-     process_path)
-    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:"))
+     update_config add_path_to_analyze)
+    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:"));
+
+  !config

@@ -1,14 +1,17 @@
 module File_infos = File_infos
 
-type t = {
-  file_infos : File_infos.t;
-}
+type t =
+  { config : Config.t
+  ; file_infos : File_infos.t
+  }
 
-let empty = {file_infos = File_infos.empty}
+let init config =
+  { config
+  ; file_infos = File_infos.empty
+  }
 
-let init cmti_file =
-  let file_infos = File_infos.init cmti_file in
-  Result.map (fun file_infos -> {file_infos}) file_infos
+let update_config config state =
+  {state with config}
 
 let change_file state cmti_file =
   let file_infos = state.file_infos in
@@ -21,12 +24,16 @@ let change_file state cmti_file =
     Result.ok state
   else if equal_no_ext file_infos.cmti_file cmti_file then
     let file_infos = File_infos.change_file file_infos cmti_file in
-    Result.map (fun file_infos -> {file_infos}) file_infos
+    Result.map (fun file_infos -> {state with file_infos}) file_infos
   else
-    init cmti_file
+    let file_infos = File_infos.init cmti_file in
+    Result.map (fun file_infos -> {state with file_infos}) file_infos
 
 (** Analysis' state *)
-let current = ref empty
+let current = ref
+    { config = Config.default_config
+    ; file_infos = File_infos.empty
+    }
 
 let get_current () = !current
 
