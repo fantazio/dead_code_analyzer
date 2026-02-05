@@ -37,7 +37,7 @@ let rec collect_export ?(mod_type = false) path u stock = function
     when not val_loc.Location.loc_ghost ->
       let state = State.get_current () in
       let should_export stock loc =
-        Config.is_activated state.config.sections.exported_values
+        Config.must_report_section state.config.sections.exported_values
         && (* do not add the loc in decs if it belongs to a module type *)
           ( stock != decs
             || not (Hashtbl.mem in_modtype loc.Location.loc_start)
@@ -133,12 +133,12 @@ let structure_item super self i =
   let sections = state.config.sections in
   let open Asttypes in
   begin match i.str_desc with
-  | Tstr_type  (_, l) when Config.is_activated sections.types ->
+  | Tstr_type  (_, l) when Config.must_report_section sections.types ->
       List.iter DeadType.tstr l
   | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
       mods := txt :: !mods;
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
-  | Tstr_class l when Config.is_activated sections.methods ->
+  | Tstr_class l when Config.must_report_section sections.methods ->
       List.iter DeadObj.tstr l
   | Tstr_include i ->
       let collect_include signature =
@@ -241,7 +241,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if Config.has_opt_args_section_activated state.config then
+      if Config.must_report_opt_args state.config then
         treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
@@ -365,9 +365,7 @@ let regabs state =
 let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
-    if
-      Config.has_main_section_activated state.config
-    then
+    if Config.must_report_main state.config then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
           State.File_infos.get_sourceunit state.file_infos
@@ -491,7 +489,7 @@ let rec load_file fn state =
           ignore (collect_references.Tast_mapper.structure collect_references x);
 
           let loc_dep =
-            if Config.is_activated state.config.sections.exported_values then
+            if Config.must_report_section state.config.sections.exported_values then
               List.rev_map
                 (fun (vd1, vd2) ->
                   (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
@@ -601,10 +599,10 @@ let report_opt_args s l =
       prloc ~fn loc; print_string ("?" ^ lab);
       if ratio <> 0. then begin
         Printf.printf "   (%d/%d calls)" (total - List.length slot) total;
-        if Config.call_sites_activated opt then print_string "  Exceptions:"
+        if Config.must_report_call_sites opt then print_string "  Exceptions:"
       end;
       print_newline ();
-      if Config.call_sites_activated opt then begin
+      if Config.must_report_call_sites opt then begin
         List.iter (pretty_print_call ()) slot;
         if nb_call <> 0 then print_newline ()
       end
@@ -660,7 +658,8 @@ let run_analysis state =
     State.update state;
     state
   in
-  Config.StringSet.fold
+  Printf.eprintf "Scanning files...\n%!";
+  Utils.StringSet.fold
     process_file
     state.State.config.paths_to_analyze
     state
@@ -675,7 +674,7 @@ try
       let no_style_config = Config.update_style "-all" state.State.config in
       let state = State.update_config no_style_config state in
       let state =
-        Config.StringSet.fold
+        Utils.StringSet.fold
           load_file
           state.config.references_paths
           state
@@ -689,18 +688,17 @@ try
 
     !DeadLexiFi.prepare_report DeadType.decs;
     let sections = state.config.sections in
-    if Config.is_activated sections.exported_values then report_unused_exported ();
+    if Config.must_report_section sections.exported_values then report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if Config.has_opt_args_section_activated state.config then begin
+    if Config.must_report_opt_args state.config then begin
       let tmp = analyze_opt_args () in
-      if Config.is_activated sections.opta then  report_opt_args "ALWAYS" tmp;
-      if Config.is_activated sections.optn then  report_opt_args "NEVER" tmp
+      if Config.must_report_section sections.opta then report_opt_args "ALWAYS" tmp;
+      if Config.must_report_section sections.optn then report_opt_args "NEVER" tmp
     end;
     let style = sections.style in
-    if [@warning "-44"]
-      style.opt_arg || style.unit_pat || style.seq || style.binding
-    then report_style ();
+    if style.opt_arg || style.unit_pat || style.seq || style.binding then
+      report_style ();
 
     if !bad_files <> [] then begin
       let oc = open_out_bin "remove_bad_files.sh" in

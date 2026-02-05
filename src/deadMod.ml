@@ -72,7 +72,7 @@ let expr m = match m.mod_desc with
         let relevant_report_enabled =
           let state = State.get_current () in
           let sections = state.config.sections in
-          if is_obj then Config.is_activated sections.methods
+          if is_obj then Config.must_report_section sections.methods
           else if is_type then exported ~is_type sections.types loc
           else exported sections.exported_values loc
         in
@@ -88,6 +88,6 @@ let expr m = match m.mod_desc with
 
 let expr m =
   let state = State.get_current () in
-  if [@warning "-44"] Config.has_main_section_activated state.config then
+  if [@warning "-44"] Config.must_report_main state.config then
     expr m
   else ()

@@ -9,23 +9,21 @@
 
 module Sections = Sections
 
-let is_activated = Sections.is_activated
+let must_report_section = Sections.must_report_section
 
 let has_activated = Sections.has_activated
 
-let call_sites_activated = Sections.call_sites_activated
+let must_report_call_sites = Sections.must_report_call_sites
 
 let get_main_threshold = Sections.get_main_threshold
-
-module StringSet = Set.Make(String)
 
 type t =
   { verbose : bool
   ; internal : bool
   ; underscore : bool
-  ; paths_to_analyze : StringSet.t
-  ; excluded_paths : StringSet.t
-  ; references_paths : StringSet.t
+  ; paths_to_analyze : Utils.StringSet.t
+  ; excluded_paths : Utils.StringSet.t
+  ; references_paths : Utils.StringSet.t
   ; sections : Sections.t
   }
 
@@ -33,17 +31,17 @@ let default_config =
   { verbose = false
   ; internal = false
   ; underscore = false
-  ; paths_to_analyze = StringSet.empty
-  ; excluded_paths = StringSet.empty
-  ; references_paths = StringSet.empty
+  ; paths_to_analyze = Utils.StringSet.empty
+  ; excluded_paths = Utils.StringSet.empty
+  ; references_paths = Utils.StringSet.empty
   ; sections = Sections.default
   }
 
-let has_main_section_activated config =
+let must_report_main config =
   let sections = config.sections in
   has_activated [sections.exported_values; sections.methods; sections.types]
 
-let has_opt_args_section_activated config =
+let must_report_opt_args config =
   let sections = config.sections in
   has_activated [sections.opta; sections.optn]
 
@@ -79,49 +77,56 @@ let set_underscore config = {config with underscore = true}
 let set_internal config = {config with internal = true}
 
 
-let normalize_path s =
-  let rec split_path s =
-    let open Filename in
-    if s = current_dir_name || s = dirname s then [s]
-    else (basename s) :: (split_path (dirname s))
-  in
-  let rec norm_path = function
-    | [] -> []
-    | x :: ((y :: _) as yss) when x = y && x = Filename.current_dir_name -> norm_path yss
-    | x :: xss ->
-      if x = Filename.current_dir_name then norm_path xss (* strip leading ./ *)
+let normalize_path path =
+  (* remove redundant "." and consecutive dir_sep in path.
+     E.g. "./foo//bar/./baz" becomes "foo/bar/baz" *)
+  let split_path path =
+    let is_end_of_path path =
+      String.equal path Filename.current_dir_name
+      || String.equal path (Filename.dirname path)
+    in
+    let rec split_path path =
+      if is_end_of_path path then [path]
       else
-      let yss = List.filter (fun x -> x <> Filename.current_dir_name) xss in
-      x :: yss
+        let splitted_dirpath = split_path (Filename.dirname path) in
+        (Filename.basename path) :: splitted_dirpath
+    in
+    List.rev (split_path path)
   in
-  let rec concat_path = function
-    | [] -> ""
-    | x :: xs -> Filename.concat x (concat_path xs)
+  let remove_redundancies splitted_path =
+    let reject_empty_and_curr s =
+      String.equal s "" || String.equal s Filename.current_dir_name
+    in
+    List.filter reject_empty_and_curr splitted_path
   in
-  concat_path (norm_path (List.rev (split_path s)))
+  let concat_path splitted_path =
+    String.concat Filename.dir_sep splitted_path
+  in
+  match path |> split_path |> remove_redundancies |> concat_path with
+  | "" -> Filename.current_dir_name
+  | normalized_path -> normalized_path
 
 let exclude path config =
   let path = normalize_path path in
-  let excluded_paths = StringSet.add path config.excluded_paths in
+  let excluded_paths = Utils.StringSet.add path config.excluded_paths in
   {config with excluded_paths}
 
 let is_excluded path config =
   let path = normalize_path path in
-  StringSet.mem path config.excluded_paths
+  Utils.StringSet.mem path config.excluded_paths
 
 let add_reference_path path config =
-  let references_paths = StringSet.add path config.references_paths in
+  let references_paths = Utils.StringSet.add path config.references_paths in
   {config with references_paths}
 
 let add_path_to_analyze path config =
-  let paths_to_analyze = StringSet.add path config.paths_to_analyze in
+  let paths_to_analyze = Utils.StringSet.add path config.paths_to_analyze in
   {config with paths_to_analyze}
 
 (* Command line parsing *)
 let parse_cli () =
   let config = ref default_config in
   let update_config f x = config := f x !config in
-
   let update_config_unit f () = config := f !config in
 
   let update_all arg config =
@@ -137,51 +142,51 @@ let parse_cli () =
   Arg.(parse
     [ "--exclude",
         String (update_config exclude),
-        "<path>  Exclude given path from research.";
+        "<path>  Exclude given path from research."
 
-      "--references",
+    ; "--references",
         String (update_config add_reference_path),
-        "<path>  Consider given path to collect references.";
+        "<path>  Consider given path to collect references."
 
-      "--underscore",
+    ; "--underscore",
         Unit (update_config_unit set_underscore),
-        " Show names starting with an underscore";
+        " Show names starting with an underscore"
 
-      "--verbose",
+    ; "--verbose",
         Unit (update_config_unit set_verbose),
-        " Verbose mode (ie., show scanned files)";
-      "-v", Unit (update_config_unit set_verbose), " See --verbose";
+        " Verbose mode (ie., show scanned files)"
+    ; "-v", Unit (update_config_unit set_verbose), " See --verbose"
 
-      "--internal",
+    ; "--internal",
         Unit (update_config_unit set_internal),
         " Keep internal uses as exported values uses when the interface is given. \
-          This is the default behaviour when only the implementation is found";
+          This is the default behaviour when only the implementation is found"
 
-      "--nothing",
+    ; "--nothing",
         Unit (update_config_unit (update_all "nothing")),
-        " Disable all warnings";
-      "-a", Unit (update_config_unit (update_all "nothing")), " See --nothing";
+        " Disable all warnings"
+    ; "-a", Unit (update_config_unit (update_all "nothing")), " See --nothing"
 
-      "--all",
+    ; "--all",
         Unit (update_config_unit (update_all "all")),
-        " Enable all warnings";
-      "-A", Unit (update_config_unit (update_all "all")), " See --all";
+        " Enable all warnings"
+    ; "-A", Unit (update_config_unit (update_all "all")), " See --all"
 
-      "-E",
+    ; "-E",
         String (update_config update_exported_values),
         "<display>  Enable/Disable unused exported values warnings.\n    \
         <display> can be:\n\
           \tall\n\
           \tnothing\n\
           \t\"threshold:<integer>\": report elements used up to the given integer\n\
-          \t\"calls:<integer>\": like threshold + show call sites";
+          \t\"calls:<integer>\": like threshold + show call sites"
 
-      "-M",
+    ; "-M",
         String (update_config update_methods),
         "<display>  Enable/Disable unused methods warnings.\n    \
-        See option -E for the syntax of <display>";
+        See option -E for the syntax of <display>"
 
-      "-Oa",
+    ; "-Oa",
         String (update_config update_opta),
         "<display>  Enable/Disable optional arguments always used warnings.\n    \
         <display> can be:\n\
@@ -193,14 +198,14 @@ let parse_cli () =
           \t\"both:<integer>,<float>\": both the number max of exceptions \
           (given through the integer) and the percent of valid cases (given as a float) \
           must be respected for the element to be reported\n\
-          \t\"percent:<float>\": percent of valid cases to be reported";
+          \t\"percent:<float>\": percent of valid cases to be reported"
 
-      "-On",
+    ; "-On",
         String (update_config update_optn),
         "<display>  Enable/Disable optional arguments never used warnings.\n    \
-        See option -Oa for the syntax of <display>";
+        See option -Oa for the syntax of <display>"
 
-      "-S",
+    ; "-S",
         String (update_config update_style),
         " Enable/Disable coding style warnings.\n    \
         Delimiters '+' and '-' determine if the following option is to enable or disable.\n    \
@@ -209,16 +214,18 @@ let parse_cli () =
           \topt: optional arg in arg\n\
           \tseq: use sequence\n\
           \tunit: unit pattern\n\
-          \tall: bind & opt & seq & unit";
+          \tall: bind & opt & seq & unit"
 
-      "-T",
+    ; "-T",
         String (update_config update_types),
         "<display>  Enable/Disable unused constructors/records fields warnings.\n    \
-        See option -E for the syntax of <display>";
+        See option -E for the syntax of <display>"
 
     ]
-    (Printf.eprintf "Scanning files...\n%!";
-     update_config add_path_to_analyze)
-    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:"));
+    (
+      update_config add_path_to_analyze
+    )
+    ("Usage: " ^ Sys.argv.(0) ^ " <options> <path>\nOptions are:")
+  );
 
   !config

@@ -146,7 +146,7 @@ let exported ?(is_type = false) (flag : Config.Sections.main_section) loc =
   let state = State.get_current () in
   let fn = loc.Lexing.pos_fname in
   let sourceunit = State.File_infos.get_sourceunit state.file_infos in
-  Config.is_activated flag
+  Config.must_report_section flag
   && LocHash.find_set references loc
      |> LocSet.cardinal <= Config.get_main_threshold flag
   && (is_type
@@ -511,10 +511,10 @@ let report_basic ?folder decs title (flag: Config.Sections.main_section) =
       if change fn then print_newline ();
       prloc ~fn loc;
       print_string path;
-      if call_sites <> [] && Config.call_sites_activated flag then
+      if call_sites <> [] && Config.must_report_call_sites flag then
         print_string "    Call sites:";
       print_newline ();
-      if Config.call_sites_activated flag then begin
+      if Config.must_report_call_sites flag then begin
         List.fast_sort compare call_sites
         |> List.iter (pretty_print_call ());
         if nb_call <> 0 then print_newline ()
