@@ -46,14 +46,14 @@ let default =
     }
   }
 
-let is_activated = function
+let must_report_section = function
   | Off -> false
   | On | Threshold _ -> true
 
 let has_activated l =
-  List.exists is_activated l
+  List.exists must_report_section l
 
-let call_sites_activated = function
+let must_report_call_sites = function
   | Threshold {call_sites; _} -> call_sites
   | On | Off -> false
 
@@ -61,12 +61,12 @@ let get_main_threshold = function
   | Threshold {threshold; _} -> threshold
   | On | Off -> 0
 
-let parse_main_section cli_opt = function
+let parse_main_section main_arg = function
   | "all" -> On
   | "nothing" -> Off
   | arg ->
       let raise_bad_arg msg =
-        raise (Arg.Bad (cli_opt ^ ": " ^ msg))
+        raise (Arg.Bad (main_arg ^ ": " ^ msg))
       in
       let threshold_section =
         let call_sites, threshold =

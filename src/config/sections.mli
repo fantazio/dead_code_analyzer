@@ -13,7 +13,7 @@ and opt_args_section = opt_args_threshold section
 and opt_args_threshold =
   | Percent of float
       (** Subsections for opt args always/never used at least [float] percent of
-      the time will be reported *)
+          the time will be reported *)
   | Both of (int * float)
       (** Subsections for opt args always/never used with at most [int]
           exceptions and at least [float] percent of the time will be reported *)
@@ -40,18 +40,19 @@ and style_section =
 
 val default : t
 (** Default sections configuration.
-    [exported],  [obj], and [typ] are [On].
+    [exported_values], [methods], and [types] are [On].
     [opta], [optn] are [Off].
-    All of the fileds in [style] are false. *)
+    All of the fields in [style] are false. *)
 
-val is_activated : _ section -> bool
-(** [is_activated sec] returns `true` if the section must be reported *)
+val must_report_section : _ section -> bool
+(** [must_report_section sec] returns [true] if the section must be reported *)
 
 val has_activated : _ section list -> bool
-(** [has_activated secs] returns `true` if one of the sections must be reported *)
+(** [has_activated secs] returns [true] if one of the sections in [sec] is
+    activated *)
 
-val call_sites_activated : _ section -> bool
-(** [call_sites_activated sec] returns `true` if call sites must be reported in
+val must_report_call_sites : _ section -> bool
+(** [must_report_call_sites sec] returns [true] if call sites must be reported in
     thresholded subsections *)
 
 
@@ -66,26 +67,26 @@ val update_exported_values : string -> t -> t
     [arg]'s specification is the one for the command line option "-E" *)
 
 val update_methods : string -> t -> t
-(** [update_exported_values arg sections] configures the [exported_values]
+(** [update_exported_values arg sections] configures the [methods]
     section according to [arg] and returns an updated version of [sections]
     [arg]'s specification is the one for the command line option "-M" *)
 
 val update_types : string -> t -> t
-(** [update_exported_values arg sections] configures the [exported_values]
+(** [update_exported_values arg sections] configures the [types]
     section according to [arg] and returns an updated version of [sections]
     [arg]'s specification is the one for the command line option "-T" *)
 
 val update_opta : string -> t -> t
-(** [update_exported_values arg sections] configures the [exported_values]
+(** [update_exported_values arg sections] configures the [opta]
     section according to [arg] and returns an updated version of [sections]
     [arg]'s specification is the one for the command line option "-Oa" *)
 
 val update_optn : string -> t -> t
-(** [update_exported_values arg sections] configures the [exported_values]
+(** [update_exported_values arg sections] configures the [optn]
     section according to [arg] and returns an updated version of [sections]
     [arg]'s specification is the one for the command line option "-On" *)
 
 val update_style : string -> t -> t
-(** [update_exported_values arg sections] configures the [exported_values]
+(** [update_exported_values arg sections] configures the [style]
     section according to [arg] and returns an updated version of [sections]
     [arg]'s specification is the one for the command line option "-S" *)

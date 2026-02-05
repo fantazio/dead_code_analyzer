@@ -179,7 +179,7 @@ let report () =
 
 let wrap f x =
   let state = State.get_current () in
-  if Config.is_activated state.config.sections.types then
+  if Config.must_report_section state.config.sections.types then
     f x
   else ()
 

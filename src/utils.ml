@@ -8,3 +8,4 @@ let remove_pp fn =
 let unit fn =
   Filename.remove_extension (Filename.basename fn)
 
+module StringSet = Set.Make(String)

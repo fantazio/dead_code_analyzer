@@ -164,7 +164,7 @@ let rec bind loc expr =
       in
       let register_optional_param = function
         | Asttypes.Optional s
-          when Config.has_opt_args_section_activated state.config ->
+          when Config.must_report_opt_args state.config ->
             let (opts, next) = VdNode.get loc in
             VdNode.update loc (s :: opts, next)
         | _ -> ()
@@ -183,7 +183,7 @@ let rec bind loc expr =
       | _ -> ()
     )
   | exp_desc
-    when Config.has_opt_args_section_activated state.config
+    when Config.must_report_opt_args state.config
          && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
       let ( let$ ) x f = Option.iter f x in
       let$ loc2 =
@@ -201,7 +201,7 @@ let rec bind loc expr =
 
 let wrap f x y =
   let state = State.get_current () in
-  if Config.has_opt_args_section_activated state.config then
+  if Config.must_report_opt_args state.config then
     f x y
   else ()
 
