@@ -35,8 +35,9 @@ let rec collect_export ?(mod_type = false) path u stock = function
 
   | Sig_value (id, ({Types.val_loc; val_type; _} as value), _)
     when not val_loc.Location.loc_ghost ->
+      let state = State.get_current () in
       let should_export stock loc =
-        Config.(is_activated !config.sections.exported_values)
+        Config.is_activated state.config.sections.exported_values
         && (* do not add the loc in decs if it belongs to a module type *)
           ( stock != decs
             || not (Hashtbl.mem in_modtype loc.Location.loc_start)
@@ -129,7 +130,7 @@ let value_binding super self x =
 
 let structure_item super self i =
   let state = State.get_current () in
-  let sections = !Config.config.sections in
+  let sections = state.config.sections in
   let open Asttypes in
   begin match i.str_desc with
   | Tstr_type  (_, l) when Config.is_activated sections.types ->
@@ -174,7 +175,8 @@ let structure_item super self i =
 
 let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -> k general_pattern =
  fun super self p ->
-  let sections = !Config.config.sections in
+  let state = State.get_current () in
+  let sections = state.config.sections in
   let pat_loc = p.pat_loc.Location.loc_start in
   let u s =
     register_style pat_loc (Printf.sprintf "unit pattern %s" s)
@@ -186,7 +188,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
       | Tpat_var (_, {txt = "eta"; loc = _}, _)
         when p.pat_loc = Location.none -> ()
       | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
-      | Tpat_any -> if !Config.config.underscore then u "_"
+      | Tpat_any -> if state.config.underscore then u "_"
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
         | {pat_desc=Tpat_construct _; _} -> ()
@@ -208,7 +210,8 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
 
 
 let expr super self e =
-  let sections = !Config.config.sections in
+  let state = State.get_current () in
+  let sections = state.config.sections in
   let rec extra = function
     | [] -> ()
     | (Texp_coerce (_, typ), _, _)::l -> DeadObj.coerce e typ.ctyp_type; extra l
@@ -238,7 +241,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
-      if Config.has_opt_args_section_activated () then
+      if Config.has_opt_args_section_activated state.config then
         treat_exp exp args;
       begin match exp.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
@@ -341,10 +344,11 @@ let collect_references =                          (* Tast_mapper *)
 
 (* Checks the nature of the file *)
 let kind fn =
+  let state = State.get_current () in
   if not (Sys.file_exists fn) then begin
     prerr_endline ("Warning: '" ^ fn ^ "' not found");
     `Ignore
-  end else if Config.is_excluded fn then `Ignore
+  end else if Config.is_excluded fn state.config then `Ignore
   else if Sys.is_directory fn then `Dir
   else if Filename.check_suffix fn ".cmi" then `Cmi
   else if Filename.check_suffix fn ".cmt" then `Cmt
@@ -362,7 +366,7 @@ let read_interface fn cmi_infos state = let open Cmi_format in
   try
     regabs state;
     if
-      Config.has_main_section_activated ()
+      Config.has_main_section_activated state.config
     then
       let u =
         if State.File_infos.has_sourcepath state.file_infos then
@@ -401,7 +405,7 @@ let assoc decs (loc1, loc2) =
     || not (is_implem fn && has_iface fn)
   in
   if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then begin
-    if (!Config.config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
+    if (state.config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
       DeadCommon.LocHash.merge_set references loc2 references loc1;
     if is_iface fn1 loc1 then begin
       if is_iface fn2 loc2 then
@@ -444,7 +448,7 @@ let eof loc_dep =
 
 
 (* Starting point *)
-let rec load_file state fn =
+let rec load_file fn state =
   let init_and_continue state fn f =
     match State.change_file state fn with
     | Error msg ->
@@ -459,7 +463,7 @@ let rec load_file state fn =
   match kind fn with
   | `Cmi when !DeadCommon.declarations ->
       last_loc := Lexing.dummy_pos;
-      if !Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if state.State.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       match state.file_infos.cmi_infos with
       | None -> () (* TODO error handling ? *) 
@@ -469,7 +473,7 @@ let rec load_file state fn =
   | `Cmt ->
       let open Cmt_format in
       last_loc := Lexing.dummy_pos;
-      if !Config.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
+      if state.config.verbose then Printf.eprintf "Scanning %s\n%!" fn;
       init_and_continue state fn (fun state ->
       regabs state;
       match state.file_infos.cmt_infos with
@@ -487,7 +491,7 @@ let rec load_file state fn =
           ignore (collect_references.Tast_mapper.structure collect_references x);
 
           let loc_dep =
-            if Config.(is_activated !config.sections.exported_values) then
+            if Config.is_activated state.config.sections.exported_values then
               List.rev_map
                 (fun (vd1, vd2) ->
                   (vd1.Types.val_loc.Location.loc_start, vd2.Types.val_loc.Location.loc_start)
@@ -503,7 +507,7 @@ let rec load_file state fn =
       let next = Sys.readdir fn in
       Array.sort compare next;
       Array.fold_left
-        (fun state s -> load_file state (fn ^ "/" ^ s))
+        (fun state s -> load_file (fn ^ "/" ^ s) state)
         state
         next
       (* else Printf.eprintf "skipping directory %s\n" fn *)
@@ -549,9 +553,10 @@ let analyze_opt_args () =
 
 
 let report_opt_args s l =
+  let state = State.get_current () in
   let opt =
-    if s = "NEVER" then !Config.config.sections.optn
-    else !Config.config.sections.opta
+    if s = "NEVER" then state.config.sections.optn
+    else state.config.sections.opta
   in
   let rec report_opt_args nb_call =
     let l = List.filter
@@ -623,10 +628,11 @@ let report_opt_args s l =
 
 
 let report_unused_exported () =
+  let state = State.get_current () in
   report_basic
     decs
     "UNUSED EXPORTED VALUES"
-    !Config.config.sections.exported_values
+    state.config.sections.exported_values
 
 
 let report_style () =
@@ -648,38 +654,45 @@ let report_style () =
 
 
 (* Option parsing and processing *)
-let parse () =
-  let process_file filename =
-    let state = State.get_current () in
-    let state = load_file state filename in
-    State.update state
+let run_analysis state =
+  let process_file filename state =
+    let state = load_file filename state in
+    State.update state;
+    state
   in
-  Config.parse_cli process_file
+  Config.StringSet.fold
+    process_file
+    state.State.config.paths_to_analyze
+    state
 
 let () =
 try
-    parse ();
+    let config = Config.parse_cli () in
+    let state = State.init config in
+    let state = run_analysis state in
     let run_on_references_only state =
       DeadCommon.declarations := false;
-      let oldsections = !Config.config.sections in
-      Config.update_style "-all";
-      Config.StringSet.fold
-        (fun path state -> load_file state path)
-        !Config.config.references_paths
-        state
-      |> ignore;
-      Config.(config := {!config with sections = oldsections})
+      let no_style_config = Config.update_style "-all" state.State.config in
+      let state = State.update_config no_style_config state in
+      let state =
+        Config.StringSet.fold
+          load_file
+          state.config.references_paths
+          state
+      in
+      State.update_config config state
     in
-    run_on_references_only (State.get_current ());
+    let state = run_on_references_only state in
+    State.update state;
 
     Printf.eprintf " [DONE]\n\n%!";
 
     !DeadLexiFi.prepare_report DeadType.decs;
-    let sections = !Config.config.sections in
+    let sections = state.config.sections in
     if Config.is_activated sections.exported_values then report_unused_exported ();
     DeadObj.report();
     DeadType.report();
-    if Config.has_opt_args_section_activated () then begin
+    if Config.has_opt_args_section_activated state.config then begin
       let tmp = analyze_opt_args () in
       if Config.is_activated sections.opta then  report_opt_args "ALWAYS" tmp;
       if Config.is_activated sections.optn then  report_opt_args "NEVER" tmp

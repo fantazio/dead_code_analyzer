@@ -474,7 +474,8 @@ let report () =
     else acc
   in
 
-  report_basic ~folder decs "UNUSED METHODS" !Config.config.sections.methods
+  let state = State.get_current () in
+  report_basic ~folder decs "UNUSED METHODS" state.config.sections.methods
 
 
 
@@ -482,7 +483,10 @@ let report () =
 
 
 let wrap f x =
-  if Config.(is_activated !config.sections.methods) then f x else ()
+  let state = State.get_current () in
+  if Config.is_activated state.config.sections.methods then
+    f x
+  else ()
 
 let collect_export path u stock ?obj ?cltyp loc =
   wrap (collect_export path u stock ~obj ~cltyp) loc
