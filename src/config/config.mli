@@ -19,7 +19,7 @@ val get_main_threshold : Sections.main_section -> int
 
 module StringSet : Set.S with type elt = String.t
 
-type t =
+type t = private
   { verbose : bool (** Display additional information during the analaysis *)
   ; internal : bool (** Keep track of internal uses for exported values *)
   ; underscore : bool (** Keep track of elements with names starting with [_] *)

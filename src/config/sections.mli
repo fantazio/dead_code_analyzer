@@ -1,4 +1,4 @@
-type t =
+type t = private
   { exported_values : main_section (** Exported values section config *)
   ; methods : main_section (** Methods section config *)
   ; types : main_section (** Constructors/fields section config *)
