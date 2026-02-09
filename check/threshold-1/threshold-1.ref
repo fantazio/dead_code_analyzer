@@ -140,19 +140,19 @@
 ./examples/using_dune/reduced_lib/reduced_lib.mli:26: Values_in_submodules_no_intf.Exported.used
 ./examples/using_dune/reduced_lib/reduced_lib.mli:29: Values_in_submodules_no_intf.Exported.externally_used
 ./examples/using_dune/reduced_lib/values.mli:2: used_by_API
-./examples/using_dune/reduced_lib/values.mli:4: externally_used: Not detected
+./examples/using_dune/reduced_lib/values.mli:4: externally_used
 ./examples/using_dune/reduced_lib/values.mli:8: lib_internal_internally_used
 ./examples/using_dune/reduced_lib/values.mli:9: lib_internal_externally_used
 ./examples/using_dune/reduced_lib/values_in_submodules.mli:3: Exported.used_by_API
-./examples/using_dune/reduced_lib/values_in_submodules.mli:5: Exported.externally_used: Not detected
+./examples/using_dune/reduced_lib/values_in_submodules.mli:5: Exported.externally_used
 ./examples/using_dune/reduced_lib/values_in_submodules.mli:9: Exported.lib_internal_internally_used
 ./examples/using_dune/reduced_lib/values_in_submodules.mli:10: Exported.lib_internal_externally_used
 ./examples/using_dune/reduced_lib/values_in_submodules_no_intf.ml:3: Exported.used_by_API
-./examples/using_dune/reduced_lib/values_in_submodules_no_intf.ml:5: Exported.externally_used: Not detected
+./examples/using_dune/reduced_lib/values_in_submodules_no_intf.ml:5: Exported.externally_used
 ./examples/using_dune/reduced_lib/values_in_submodules_no_intf.ml:9: Exported.lib_internal_internally_used
 ./examples/using_dune/reduced_lib/values_in_submodules_no_intf.ml:10: Exported.lib_internal_externally_used
 ./examples/using_dune/reduced_lib/values_no_intf.ml:2: used_by_API
-./examples/using_dune/reduced_lib/values_no_intf.ml:4: externally_used: Not detected
+./examples/using_dune/reduced_lib/values_no_intf.ml:4: externally_used
 ./examples/using_dune/reduced_lib/values_no_intf.ml:12: lib_internal_internally_used
 ./examples/using_dune/reduced_lib/values_no_intf.ml:13: lib_internal_externally_used
 
@@ -874,6 +874,6 @@ Nothing else to report in this section
 
 
 Total: 762
-Success: 758
-Failed: 4
-Ratio: 99.4750656168%
+Success: 762
+Failed: 0
+Ratio: 100.%
