@@ -3,7 +3,6 @@ type t = {
   cm_file : string;
   cmi_sign : Types.signature option;
   cmt_struct : Typedtree.structure option;
-  cmti_uid_to_decl : Location_dependencies.uid_to_decl option;
   location_dependencies : Location_dependencies.t;
   modname : string;
   sourcepath : string option;
@@ -14,7 +13,6 @@ let empty = {
   cm_file = "";
   cmi_sign = None;
   cmt_struct = None;
-  cmti_uid_to_decl = None;
   location_dependencies = Location_dependencies.empty;
   modname = "!!UNKNOWN_MODNAME!!";
   sourcepath = None;
@@ -59,11 +57,10 @@ let ( let* ) x f = Result.bind x f
 let ( let+ ) x f = Result.map f x
 
 let init_from_cmti_file cmti_file =
-  let+ file_infos, cmt_infos = init_from_cm_file cmti_file in
-  let cmti_uid_to_decl = Some cmt_infos.cmt_uid_to_decl in
-  {file_infos with cmti_uid_to_decl}
+  let+ file_infos, _ = init_from_cm_file cmti_file in
+  file_infos
 
-let init_from_cmt_file ~comp_unit_to_path cmt_file =
+let init_from_cmt_file cmt_file =
   let* file_infos, cmt_infos = init_from_cm_file cmt_file in
   let* cmt_struct =
     match cmt_infos.cmt_annots with
@@ -71,66 +68,53 @@ let init_from_cmt_file ~comp_unit_to_path cmt_file =
     | _ -> Result.error (cmt_file ^ ": does not contain an implementation")
   in
   let cmt_struct = Some cmt_struct in
-  (* Read the cmti if it exists. We always want to do it in case a user
-     specified the cmt before the cmti to ensure the location_dependencies
-     are idempotent. *)
-  let cmti_uid_to_decl =
-    let cmti_file = Filename.remove_extension cmt_file ^ ".cmti" in
-    match init_from_cmti_file cmti_file with
-    | Error _ -> None
-    | Ok file_infos -> file_infos.cmti_uid_to_decl
-  in
-  let+ location_dependencies =
-    Location_dependencies.init ~comp_unit_to_path cmt_infos cmti_uid_to_decl
-  in
+  let+ location_dependencies = Location_dependencies.init cmt_infos in
   let file_infos =
-    {file_infos with cmt_struct; cmti_uid_to_decl; location_dependencies}
+    {file_infos with cmt_struct; location_dependencies}
   in
   file_infos, cmt_infos
 
-let init ~comp_unit_to_path cm_file =
+let init cm_file =
   match Filename.extension cm_file with
   | ".cmt" ->
-      let+ file_infos, _ = init_from_cmt_file ~comp_unit_to_path cm_file in
+      let+ file_infos, _ = init_from_cmt_file cm_file in
       file_infos
   | ".cmti" -> (
       (* Using cmt_infos is not critical. The intent is to mirror the behavior
          on cmt files, where both cmt and cmti are read. *)
       let filled_with_cmt_infos =
         let cmt_file = Filename.remove_extension cm_file ^ ".cmt" in
-        let* file_infos, cmt_infos = init_from_cmt_file ~comp_unit_to_path cmt_file in
-        let+ location_dependencies =
-          Location_dependencies.init ~comp_unit_to_path cmt_infos file_infos.cmti_uid_to_decl
-        in
+        let* file_infos, cmt_infos = init_from_cmt_file cmt_file in
+        let+ location_dependencies = Location_dependencies.init cmt_infos in
         {file_infos with location_dependencies}
       in
       match filled_with_cmt_infos with
-      | Ok {cmt_struct; cmti_uid_to_decl; location_dependencies; _} ->
+      | Ok {cmt_struct; location_dependencies; _} ->
           let+ res, _ = init_from_cm_file cm_file in
-          {res with cmt_struct; cmti_uid_to_decl; location_dependencies}
+          {res with cmt_struct; location_dependencies}
       | Error _ -> init_from_cmti_file cm_file
   )
   | _ -> Result.error (cm_file ^ ": not a .cmti or .cmt file")
 
-let change_file ~comp_unit_to_path file_infos cm_file =
+let change_file file_infos cm_file =
   let no_ext = Filename.remove_extension cm_file in
   assert(no_ext = Filename.remove_extension file_infos.cm_file);
   match Filename.extension cm_file, file_infos with
-  | ".cmt", {cmt_struct = (Some _ as cs); cmi_sign; cmti_uid_to_decl; _} ->
+  | ".cmt", {cmt_struct = (Some _ as cs); cmi_sign; _} ->
       let* res, cmt_infos = init_from_cm_file cm_file in
       let+ location_dependencies =
         match file_infos.location_dependencies with
-        | [] -> Location_dependencies.init ~comp_unit_to_path cmt_infos cmti_uid_to_decl
+        | [] -> Location_dependencies.init cmt_infos
         | loc_dep -> (* They have already been computed *)
             Result.ok loc_dep
       in
-      {res with cmt_struct = cs; cmi_sign; cmti_uid_to_decl; location_dependencies}
-  | ".cmti", {cmti_uid_to_decl = (Some _ as cutd); cmt_struct; location_dependencies; _} ->
+      {res with cmt_struct = cs; cmi_sign; location_dependencies}
+  | ".cmti", {cmt_struct; location_dependencies; _} ->
       let+ res, _ = init_from_cm_file cm_file in
-      {res with cmti_uid_to_decl = cutd; cmt_struct; location_dependencies}
+      {res with cmt_struct; location_dependencies}
   | _ ->
       (* invalid extension or the corresponding info is None *)
-      init ~comp_unit_to_path cm_file
+      init cm_file
 
 let has_sourcepath file_infos = Option.is_some file_infos.sourcepath
 

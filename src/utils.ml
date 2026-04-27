@@ -10,7 +10,13 @@ module Filepath = struct
     | _ -> filepath
 
   let unit filepath =
-    Unit_info.lax_modname_from_source filepath
+    (* reproduce https://github.com/ocaml/ocaml/blob/5.3/parsing/unit_info.ml#L60 *)
+    let remove_all_ext basename =
+      match String.index basename '.' with
+        | dot_pos -> String.sub basename 0 dot_pos
+        | exception Not_found -> basename
+    in
+    filepath |> Filename.basename |> remove_all_ext |> String.capitalize_ascii
 
   type kind =
     | Cmti
