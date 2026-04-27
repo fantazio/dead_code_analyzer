@@ -92,7 +92,13 @@ let update state line =
 
 let process state filepath =
   let input_lines =
-    In_channel.with_open_text filepath In_channel.input_lines
+    let [@tail_mod_cons] rec input_lines ic =
+      (* reproduce https://github.com/ocaml/ocaml/blob/5.3.0/stdlib/in_channel.ml#L195 *)
+      match In_channel.input_line ic with
+      | Some line -> line :: input_lines ic
+      | None -> []
+    in
+    In_channel.with_open_text filepath input_lines
   in
   print_title (Filename.remove_extension filepath);
   let local_state = List.fold_left update State.init input_lines in

@@ -1,6 +1,6 @@
 COMPFLAGS=-g -w +A-4-9-40-42 -bin-annot -keep-locs
-OCAMLC=ocamlc $(COMPFLAGS)
-OCAMLOPT=ocamlopt $(COMPFLAGS)
+OCAMLC=ocamlc -I +unix unix.cma $(COMPFLAGS)
+OCAMLOPT=ocamlopt -I +unix unix.cmxa $(COMPFLAGS)
 
 API_SRC=pretty_print.ml section.ml scores.ml path.ml reports.ml
 CHECK_SRC=$(API_SRC:.ml=.mli) $(API_SRC) check.mli check.ml

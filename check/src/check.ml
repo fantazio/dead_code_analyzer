@@ -178,7 +178,13 @@ let normalized_lines_of ~is_res_file filename =
             else Path.normalize_to_unix line
         )
   in
-  In_channel.with_open_text filename In_channel.input_lines
+  let [@tail_mod_cons] rec input_lines ic =
+    (* reproduce https://github.com/ocaml/ocaml/blob/5.3.0/stdlib/in_channel.ml#L195 *)
+    match In_channel.input_line ic with
+    | Some line -> line :: input_lines ic
+    | None -> []
+  in
+  In_channel.with_open_text filename input_lines
   |> List.map normalize
 
 let () =
