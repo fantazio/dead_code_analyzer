@@ -387,10 +387,10 @@ Scanning files...
 
 .> UNUSED EXPORTED VALUES:
 =========================
-/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:20: copy
-/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:25: id
-/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:40: new_method
-/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:41: public_method_label
+/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:18: copy
+/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:22: id
+/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:37: new_method
+/tmp/docs/exported_values/limitations/incl_same_name/oo.mli:38: public_method_label
 
 Nothing else to report in this section
 --------------------------------------------------------------------------------

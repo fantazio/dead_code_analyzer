@@ -23,10 +23,10 @@
 
 ./examples/docs/exported_values/code_constructs/module/module_lib.mli:6: M.unused
 
-./examples/docs/exported_values/limitations/incl_same_name/oo.mli:20: copy: Should not be detected
-./examples/docs/exported_values/limitations/incl_same_name/oo.mli:25: id: Should not be detected
-./examples/docs/exported_values/limitations/incl_same_name/oo.mli:40: new_method: Should not be detected
-./examples/docs/exported_values/limitations/incl_same_name/oo.mli:41: public_method_label: Should not be detected
+./examples/docs/exported_values/limitations/incl_same_name/oo.mli:18: copy: Should not be detected
+./examples/docs/exported_values/limitations/incl_same_name/oo.mli:22: id: Should not be detected
+./examples/docs/exported_values/limitations/incl_same_name/oo.mli:37: new_method: Should not be detected
+./examples/docs/exported_values/limitations/incl_same_name/oo.mli:38: public_method_label: Should not be detected
 ./examples/docs/exported_values/limitations/sigincl/sigincl_lib.mli:10: I.x: Should not be detected
 ./examples/docs/methods/code_constructs/factory_fun/factory_fun_bin.ml:2: unused_factory
 
