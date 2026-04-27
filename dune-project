@@ -22,6 +22,6 @@
  (synopsis "Dead code analyzer for OCaml")
  (license MIT)
  (depends
-  (ocaml (and (>= 5.3) (< 5.4)))
+  (ocaml (and (>= 4.14) (< 5.0)))
  )
 )

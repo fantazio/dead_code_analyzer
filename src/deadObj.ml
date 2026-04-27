@@ -145,8 +145,7 @@ let rec treat_fields action typ = match get_deep_desc typ with
 let rec repr_exp expr f =
   match expr.exp_desc with
     | Texp_sequence (_, expr)
-    | Texp_function (_, Tfunction_cases { cases = {c_rhs=expr; _}::_ ; _ })
-    | Texp_function (_, Tfunction_body expr)
+    | Texp_function {cases = {c_rhs=expr; _}::_ ; _}
     | Texp_apply (expr, _) -> repr_exp expr f
     | _ -> f expr
 
@@ -284,7 +283,7 @@ let class_structure cl_struct =
         add_equal pat.pat_loc.Location.loc_start !last_class
     | _ -> () end;
     match pat.pat_desc with
-    | Tpat_alias (pat, _, _, _) -> add_aliases pat
+    | Tpat_alias (pat, _, _) -> add_aliases pat
     | _ -> ()
   in
   add_aliases cl_struct.cstr_self

@@ -132,7 +132,7 @@ and register_higher_order_uses builddir e =
       in
       let$ (c_lhs, c_rhs) =
         match expr.exp_desc with
-        | Texp_function (_, Tfunction_cases {cases = [case]; _}) ->
+        | Texp_function {cases = [case]; _} ->
             Some (case.c_lhs, case.c_rhs)
         | _ -> None
       in
@@ -156,30 +156,19 @@ let register_uses val_loc args =
 let rec bind loc expr =
   let state = State.get_current () in
   match expr.exp_desc with
-  | Texp_function (params, body) -> (
-      let check_param_style = function
-        | Tparam_pat {pat_type; _}
-        | Tparam_optional_default ({pat_type; _}, _) ->
-            DeadType.check_style pat_type expr.exp_loc.Location.loc_start
-      in
-      let register_optional_param = function
-        | Asttypes.Optional s
-          when Config.must_report_opt_args state.config ->
-            let (opts, next) = VdNode.get loc in
-            VdNode.update loc (s :: opts, next)
-        | _ -> ()
-      in
-      List.iter
-        (fun {fp_kind; fp_arg_label; _} ->
-          check_param_style fp_kind;
-          register_optional_param fp_arg_label
-        )
-        params;
-      match body with
-      | Tfunction_body exp -> bind loc exp
-      | Tfunction_cases {cases = [{c_lhs = {pat_type; _}; c_rhs = exp; _}]; _} ->
+  | Texp_function {arg_label; cases; _} -> (
+      match cases with
+      | {c_lhs = {pat_type; _}; c_rhs; _}::[] ->
+          let register_optional_param = function
+            | Asttypes.Optional s
+              when Config.must_report_opt_args state.config ->
+                let (opts, next) = VdNode.get loc in
+                VdNode.update loc (s :: opts, next)
+            | _ -> ()
+          in
           DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
-          bind loc exp
+          register_optional_param arg_label;
+          bind loc c_rhs
       | _ -> ()
     )
   | exp_desc

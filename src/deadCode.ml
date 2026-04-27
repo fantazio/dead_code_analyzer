@@ -112,12 +112,8 @@ let rec treat_exp exp args =
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
       DeadArg.register_uses loc args
 
-  | Texp_match (_, comp_l, val_l, _) ->
-      let process_cases l =
-        List.iter (fun {c_rhs = exp; _} -> treat_exp exp args) l
-      in
-      process_cases comp_l;
-      process_cases val_l
+  | Texp_match (_, l, _) ->
+      List.iter (fun {c_rhs = exp; _} -> treat_exp exp args) l
 
   | Texp_ifthenelse (_, exp_then, exp_else) ->
       treat_exp exp_then args;
@@ -138,7 +134,7 @@ let value_binding super self x =
   | { vb_pat =
         { pat_desc = Tpat_var (
             _,
-            {loc = {Location.loc_start = loc1; loc_ghost = false; _}; _}, _);
+            {loc = {Location.loc_start = loc1; loc_ghost = false; _}; _});
           _};
       vb_expr =
         { exp_desc = Texp_ident (
@@ -152,7 +148,7 @@ let value_binding super self x =
   | { vb_pat =
         { pat_desc = Tpat_var (
             _,
-            {loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _);
+            {loc = {Location.loc_start = loc; loc_ghost = false; _}; _});
           _};
       vb_expr = exp;
       _
@@ -200,7 +196,6 @@ let structure_item super self i =
         | Tmod_unpack (_, mod_type) -> collect_include (Utils.signature_of_modtype mod_type)
         | Tmod_functor (_, mod_expr)
         | Tmod_apply (_, mod_expr, _)
-        | Tmod_apply_unit mod_expr
         | Tmod_constraint (mod_expr, _, _, _) -> includ mod_expr
       in
       includ i.incl_mod
@@ -226,9 +221,9 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   if DeadType.is_unit p.pat_type && sections.style.unit_pat then begin
     match p.pat_desc with
       | Tpat_construct _ -> ()
-      | Tpat_var (_, {txt = "eta"; loc = _}, _)
+      | Tpat_var (_, {txt = "eta"; loc = _})
         when p.pat_loc = Location.none -> ()
-      | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
+      | Tpat_var (_, {txt; _}) -> if check_underscore txt then u txt
       | Tpat_any -> if state.config.underscore then u "_"
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
@@ -299,14 +294,14 @@ let expr super self e =
   | Texp_let (_, [{vb_pat; _}], _)
     when DeadType.is_unit vb_pat.pat_type && sections.style.seq ->
       begin match vb_pat.pat_desc with
-      | Tpat_var (id, _, _) when not (check_underscore (Ident.name id)) -> ()
+      | Tpat_var (id, _) when not (check_underscore (Ident.name id)) -> ()
       | _ ->
           register_style
             vb_pat.pat_loc.Location.loc_start
             "let () = ... in ... (=> use sequence)"
       end
 
-  | Texp_match (_, [{c_lhs; _}], [], _)
+  | Texp_match (_, [{c_lhs; _}], _)
     when DeadType.is_unit c_lhs.pat_type && sections.style.seq ->
       begin match c_lhs.pat_desc with
       | Tpat_value tpat_arg ->
@@ -322,7 +317,7 @@ let expr super self e =
 
   | Texp_let (
         Asttypes.Nonrecursive,
-        [{vb_pat = {pat_desc = Tpat_var (id1, _, _); pat_loc = {loc_start = loc; _}; _}; _}],
+        [{vb_pat = {pat_desc = Tpat_var (id1, _); pat_loc = {loc_start = loc; _}; _}; _}],
         {exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _})
     when id1 = id2
          && sections.style.binding
