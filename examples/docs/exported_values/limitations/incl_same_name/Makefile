@@ -6,7 +6,7 @@ build:
 	make -C incl_with_intf
 
 analyze:
-	~/proj/dead_code_analyzer/_build/install/default/bin/dead_code_analyzer --nothing -E all .
+	dead_code_analyzer --nothing -E all .
 
 clean:
 	rm -f *.cm* *.o a.out
