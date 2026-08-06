@@ -33,6 +33,8 @@
 ./examples/docs/exported_values/hello_world/hello_world_with_intf.mli:3: goodbye
 ./examples/docs/exported_values/hello_world/hello_world_with_intf.mli:4: world
 
+./examples/docs/exported_values/limitations/incl_same_name/coincide_locations/without_intf.ml:4: redefined_unused
+
 ./examples/docs/exported_values/limitations/incl_same_name/incl_with_intf/with_intf.mli:4: redefined_unused
 ./examples/docs/exported_values/limitations/incl_same_name/incl_with_intf/without_intf.mli:4: redefined_unused
 

@@ -1,0 +1,5 @@
+The module `without_intf` include that of `To_incl` and redefine
+`redefined_unused` and `redefined_used` at the exact same lexing locations
+they are defined in `To_intf`:
+their line starts at the same character offset as the ones in `To_incl`.
+This is very fragile, be careful when modifying those tests.
