@@ -175,7 +175,7 @@ let collect_export path u stock ~obj ~cltyp loc =
 
   begin match List.rev_map (fun id -> Ident.name id) path with
   | h :: t
-    when !last_class == Lexing.dummy_pos || !last_class <= pos || decs != incl ->
+    when decs != incl ->
       let short = String.concat "." t in
       let path = h ^ "." ^ short in
       Hashtbl.add defined short path;
@@ -192,9 +192,6 @@ let collect_export path u stock ~obj ~cltyp loc =
       decs
     end
   in
-
-  last_class := pos;
-
 
   let save id =
     let state = State.get_current () in
@@ -238,7 +235,7 @@ let tstr ({ci_expr; ci_decl = {cty_loc = loc; _}; ci_id_name = {txt = name; _}; 
   in
   let modname = State.File_infos.get_modname state.file_infos in
   let path = modname ^ "." ^ short in
-  if not (Hashtbl.mem defined short) then
+  begin if not (Hashtbl.mem defined short) then
     Hashtbl.add defined short path
   else
     let loc =
@@ -250,6 +247,7 @@ let tstr ({ci_expr; ci_decl = {cty_loc = loc; _}; ci_id_name = {txt = name; _}; 
       add_equal !last_class loc
     else
       add_path path !last_class;
+  end;
 
   let rec make_dep ci_expr =
     match ci_expr.cl_desc with
