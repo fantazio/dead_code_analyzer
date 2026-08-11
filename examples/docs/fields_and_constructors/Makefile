@@ -4,7 +4,9 @@ all: build
 
 build:
 	make -C code_constructs
+	make -C limitations
 
 clean:
 	rm -f *~ *.cm* *.o *.obj
 	make -C code_constructs clean
+	make -C limitations clean
