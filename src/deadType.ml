@@ -21,6 +21,8 @@ let decs = Hashtbl.create 256
 
 let dependencies = ref []   (* like the cmt value_dependencies but for types *)
 
+let equivalences = ref []   (* t1 = t2 *)
+
 
 
                 (********   HELPERS   ********)
@@ -133,34 +135,75 @@ let rec check_style t loc =
 let tstr typ =
   let state = State.get_current() in
   let modname = State.File_infos.get_modname state.file_infos in
+
+  (* A type equation [type t1 = t2 = ...] produces a
+     [typ_manifest = Some (Ttyp_constr t2)] in t1
+     In this situation, we want to remember the equality between t1 and t2's
+     components, for later resolution of equivalence classes and merging
+     all their references (see {!prepare_report} below).
+  *)
+  let equivalent_type_path =
+    match typ.typ_manifest with
+    | Some {ctyp_desc=Ttyp_constr (_, {txt;  _}, _); _} ->
+        let path = String.concat "." (Longident.flatten txt) in
+        Some path
+    | _ -> None
+  in
+
+  let handle_external_type_eq : string -> string -> unit =
+    (* Store t1 = t2 equivalence, with t2 assumed to be defined outside the
+       current compilation unit *)
+    match equivalent_type_path with
+    | None -> fun _ _ -> ()
+    | Some equivalent_type_path ->
+        fun path component_name ->
+          let eq_path =
+            equivalent_type_path ^ "." ^ component_name
+          in
+          equivalences := (path, eq_path) :: !equivalences
+  in
+
+  let handle_internal_type_eq : Lexing.position -> string -> unit =
+    (* Store t1 = t2 equivalence as a dependency, with t2 defined within the
+       current compilation unit *)
+    match equivalent_type_path with
+    | None -> fun _ _ -> ()
+    | Some equivalent_type_path ->
+        fun loc component_name ->
+          let eq_path =
+            String.concat "." [modname; equivalent_type_path; component_name]
+          in
+          match Hashtbl.find_opt fields eq_path with
+          | None -> () (* t2 is not defined locally *)
+          | Some eq_loc ->
+              dependencies := (eq_loc, loc) :: !dependencies;
+  in
+
+  let handle_type_dep loc path_loc component_name =
+    handle_internal_type_eq loc component_name;
+    if path_loc <> loc then
+      (* store dependency between .ml and .mli *)
+      dependencies := (path_loc, loc) :: !dependencies;
+  in
+
   let assoc name loc =
+    (* store the association from name to loc in fields,
+       the dependenicies and the equivalences *)
+    let component_name = name.Asttypes.txt in
     let path =
       let partial_path_rev =
-        name.Asttypes.txt :: typ.typ_name.Asttypes.txt :: !mods
+        component_name :: typ.typ_name.Asttypes.txt :: !mods
       in
       modname :: List.rev partial_path_rev
       |> String.concat "."
     in
+    handle_external_type_eq path component_name;
     match Hashtbl.find_opt fields path with
     | None -> Hashtbl.add fields path loc
     | Some path_loc ->
-      (match typ.typ_manifest with
-      (* TODO : describe what this pattern is for *)
-      | Some {ctyp_desc=Ttyp_constr (_, {txt;  _}, _); _} ->
-        let constr_typ_path =
-          modname :: Longident.flatten txt @ (name.Asttypes.txt :: [])
-          |> String.concat "."
-        in
-        (match Hashtbl.find_opt fields constr_typ_path with
-        | None -> ()
-        | Some constr_loc ->
-          dependencies := (path_loc, constr_loc) :: (constr_loc, loc) :: !dependencies
-        )
-      | _ -> ()
-      );
-      dependencies := (path_loc, loc) :: !dependencies
+        (* The path is known because the current compilation unit exports it *)
+        handle_type_dep loc path_loc component_name
   in
-
   let assoc name loc ctyp =
     assoc name loc;
     !DeadLexiFi.tstr_type typ ctyp
@@ -178,6 +221,67 @@ let tstr typ =
           (fun {Typedtree.cd_name; cd_loc; _} -> assoc cd_name cd_loc.Location.loc_start _variant)
           l
     | _ -> ()
+
+
+let prepare_report () =
+  (* implement a pseudo union-find via 2 tables : references and reprs *)
+  (* references hold merged references of a union class with the
+     representative as key.*)
+  let references = LocHash.create 128 in
+  (* reprs points to another member of the location's equivalence class.
+     This memeber was the representative at some point. There are no
+     circular references.
+     _The_ representative of a class points to itself.
+     Use get_repr to get _the_ representative of a location's class.
+  *)
+  let reprs = Hashtbl.create 128 in
+  let init_refs loc =
+    (* the initial value for a single-element class is the set of references
+       gathered during the analysis *)
+    LocHash.find_set DeadCommon.references loc
+    |> LocHash.replace references loc
+  in
+  let rec get_repr loc =
+    (* explore members of loc's class until finding the class representative *)
+    match Hashtbl.find_opt reprs loc with
+    | None ->
+        (* loc does not belong to a class yet. Setup its own *)
+        init_refs loc;
+        Hashtbl.add reprs loc loc;
+        loc
+    | Some repr when repr = loc -> loc (* class representative found *)
+    | Some repr ->  get_repr repr (* class member but not the representative *)
+  in
+  let merge_references (path1, path2) =
+    let loc1 = Hashtbl.find_opt fields path1 in
+    let loc2 = Hashtbl.find_opt fields path2 in
+    match loc1, loc2 with
+    | None, _ | _, None -> ()
+    | Some loc1, Some loc2 ->
+        let repr1 = get_repr loc1 in
+        let repr2 = get_repr loc2 in
+        Hashtbl.replace reprs repr1 repr2;
+        (* repr1 is now represented by repr2: its references are transfered *)
+        LocHash.merge_set references repr2 references repr1;
+        LocHash.remove references repr1
+  in
+  let update_references loc =
+    Option.iter
+      (fun loc ->
+        let repr = get_repr loc in
+        let refs = LocHash.find_set references repr in
+        (* refs include the references gathered for loc and all the members
+           of its equivalence class *)
+        LocHash.replace DeadCommon.references loc refs
+      )
+      loc
+  in
+  let update_references (path1, path2) =
+    Hashtbl.find_opt fields path1 |> update_references;
+    Hashtbl.find_opt fields path2 |> update_references
+  in
+  List.iter merge_references !equivalences;
+  List.iter update_references !equivalences
 
 
 let report () =
