@@ -678,6 +678,7 @@ try
     in
 
     !DeadLexiFi.prepare_report DeadType.decs;
+    DeadType.prepare_report ();
     let sections = state.config.sections in
     if Config.must_report_section sections.exported_values then report_unused_exported ();
     DeadObj.report();
