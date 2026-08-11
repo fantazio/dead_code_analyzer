@@ -10,6 +10,8 @@
 + [Examples](#examples)
 + [Limitations](#limitations)
     + [Polymorphic variant](#polymorphic-variant)
+    + [Extensible variant](#extensible-variant)
+    + [Inline record](#inline-record)
 
 # Fields and constructors
 
