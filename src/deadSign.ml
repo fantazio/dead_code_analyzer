@@ -1,5 +1,18 @@
 
+let exported_modules = Hashtbl.create 32
+(* types of modules exported by the current compilation unit.
+   This is reset when calling eof.
+   This is used when encountering a module alias in the .cmt because
+   the module type information is limited to Mty_alias there. *)
+
+let eof () =
+  Hashtbl.reset exported_modules
+
 (* Export helpers *)
+
+let export_module ~path mt =
+  let key = List.map Ident.name path in
+  Hashtbl.add exported_modules key mt
 
 let export_object ~path ~comp_unit ~stock id value =
   (* export a value as an object *)
@@ -103,6 +116,7 @@ let collect_export_from_signature ~path ~comp_unit signature =
 
     | Tsig_module {md_id = Some id; md_type; _} ->
         let path = id :: path in
+        export_module ~path md_type.mty_type;
         Utils.typedtree_signature_of_modtype md_type
         |> Option.iter (collect_signature path);
         mark_modtype_elements md_type
@@ -182,6 +196,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tmod_unpack _ ->
         ()
     | Tmod_structure structure ->
+        export_module ~path m.mod_type;
         collect_structure ~path structure
     | Tmod_functor (_, m)
     | Tmod_apply (m, _, _)
@@ -189,6 +204,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tmod_constraint (m, _, Tmodtype_implicit, _) ->
         collect_module ~path m
     | Tmod_constraint (_, _, Tmodtype_explicit mt, _) ->
+        export_module ~path mt.mty_type;
         Utils.typedtree_signature_of_modtype mt
         |> Option.iter (collect_export_from_signature ~path ~comp_unit)
 
@@ -300,6 +316,49 @@ let collect_from_include incl_decl =
     | _ -> ()
   in
   List.iter (collect_from_sig_item ~path:[]) signature
+
+let collect_equivalence_from_module_alias ~path module_binding =
+  match (module_binding : Typedtree.module_binding) with
+  | {mb_id = None; _} -> ()
+  | {mb_id = Some _; mb_expr; _} ->
+      let rev_alias_path = path in
+      let rec collect_from_sig_item ~original_path ?(sub_path=[]) sig_item =
+        match (sig_item : Types.signature_item) with
+
+        | Sig_module (id, _, {Types.md_type; _}, _, _) ->
+            let sub_path = Ident.name id :: sub_path in
+            Utils.signature_of_modtype md_type
+            |> List.iter (collect_from_sig_item ~original_path ~sub_path)
+
+        | Sig_type (id, t, _, _) ->
+            let sub_path = List.rev (Ident.name id :: sub_path) in
+            DeadType.collect_equivalence_from_module_alias
+              ~rev_alias_path
+              ~original_path
+              ~sub_path
+              t
+
+        | _ -> ()
+      in
+      let rec collect_from_module_expr mod_expr =
+        match mod_expr.Typedtree.mod_desc with
+        | Tmod_ident (_, {txt; _}) ->
+            begin match Hashtbl.find_opt exported_modules rev_alias_path with
+              | None -> () (* module is not exported *)
+              | Some mt ->
+                  let original_path = Longident.flatten txt in
+                  Utils.signature_of_modtype mt
+                  |> List.iter (collect_from_sig_item ~original_path)
+            end
+        | Tmod_constraint (mod_expr, _, _, _)
+        | Tmod_functor (_, mod_expr)
+        | Tmod_apply (mod_expr, _, _)
+        | Tmod_apply_unit mod_expr ->
+            collect_from_module_expr mod_expr
+        | Tmod_structure _
+        | Tmod_unpack (_, _) -> ()
+      in
+      collect_from_module_expr mb_expr
 
 
 let correct_export sig_item =

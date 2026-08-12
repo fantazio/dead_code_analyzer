@@ -79,6 +79,7 @@ let collect_export path u stock t =
 
   let save id loc =
     if t.type_manifest = None then
+      (* do not export t1 when there is an explicit equation t1 = t2 *)
       export path u stock id loc;
     let path = String.concat "." @@ List.rev_map (fun id -> Ident.name id) (id::path) in
     Hashtbl.replace fields path loc.Location.loc_start
@@ -138,6 +139,60 @@ let add_type_eq component_path eq_type_path component_name =
   let eq_path = eq_type_path ^ "." ^ component_name in
   equivalences := (component_path, eq_path) :: !equivalences
 
+
+let collect_equivalence_from_module_alias ~rev_alias_path ~original_path ~sub_path type_decl =
+  let type_path =
+    List.rev_append rev_alias_path sub_path
+    |> String.concat "."
+  in
+  let add_type_eq component_id =
+    let component_name = Ident.name component_id in
+    let component_path = type_path ^ "." ^ component_name in
+    match Hashtbl.find_opt fields component_path with
+    | None -> () (* The component_path is not undefined (thus, unexported) *)
+    | Some _ ->
+        (* The component_path is known because the current compilation unit
+           defines it *)
+        let original_eq_type_path =
+          String.concat "." (original_path @ sub_path)
+        in
+        let rec add_eq_type internal_path =
+          (* internal_path is a tentative path  to the aliased type
+             internally. It ends with original_eq_type_path, which is
+             the shortest possible path to the aliased type within the
+             current compilation unit *)
+          match internal_path with
+          | None -> (* the equivalent type is external *)
+              add_type_eq component_path original_eq_type_path component_name
+          | Some internal_path ->
+              let eq_type_path = String.concat "." internal_path in
+              let eq_component_path = eq_type_path ^ "." ^ component_name in
+              match Hashtbl.find_opt fields eq_component_path with
+              | Some _ -> () (* local alias *)
+              | None ->
+                  let internal_path =
+                    match internal_path with
+                    | [] | _::[] -> None
+                    | _::internal_path -> Some internal_path
+                  in
+                  add_eq_type internal_path
+        in
+        (* *)
+        let internal_path =
+          original_eq_type_path :: List.tl rev_alias_path
+          |> List.rev
+        in
+        add_eq_type (Some internal_path)
+
+  in
+  match type_decl.type_kind with
+    | Type_record (l, _) ->
+        List.iter (fun {Types.ld_id; _} -> add_type_eq ld_id) l
+    | Type_variant (l, _) ->
+        List.iter (fun {Types.cd_id; _} -> add_type_eq cd_id) l
+    | _ -> ()
+
+
 let collect_equivalence_from_include ~incl_id ~path type_decl =
   let state = State.get_current () in
   (* internal path *)
@@ -156,7 +211,7 @@ let collect_equivalence_from_include ~incl_id ~path type_decl =
     (* internal path *)
     let component_path = type_path ^ "." ^ component_name in
     match Hashtbl.find_opt fields component_path with
-    | None -> () (* The comonent_path is not undefined (thus, unexported) *)
+    | None -> () (* The component_path is not undefined (thus, unexported) *)
     | Some _ ->
         (* The component_path is known because the current compilation unit
            defines it *)
