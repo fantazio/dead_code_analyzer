@@ -1,6 +1,6 @@
 val collect_export_from_signature :
-  path:Ident.t list ->
-  comp_unit:string ->
+  path: Ident.t list ->
+  comp_unit: string ->
   Typedtree.signature
   -> unit
 (** [collect_export_from_signature ~path ~comp_unit signature]
@@ -12,8 +12,8 @@ val collect_export_from_signature :
 *)
 
 val collect_export_from_structure :
-  path:Ident.t list ->
-  comp_unit:string ->
+  path: Ident.t list ->
+  comp_unit: string ->
   Typedtree.structure
   -> unit
 (** [collect_export_from_structure ~path ~comp_unit structure]
@@ -22,14 +22,12 @@ val collect_export_from_structure :
     See {!collect_export_from_signature} above for more information.
 *)
 
-val collect_export_from_include :
-  path:Ident.t list ->
-  Types.signature_item
+val collect_from_include :
+  Typedtree.include_declaration
   -> unit
-(** [collect_export_from_include ~path sig_item]
-    recursively traverse the [sig_item] and store exported elements
-    (values, constructors, ...) in {!DeadCommon.incl}.
-    See {!collect_export_from_signature} above for more information.
+(** [collect_from_include incl_decl]
+    store exported object, class elements and type equivalences found in
+    [incl_decl].
 *)
 
 val correct_export : Types.signature_item -> unit

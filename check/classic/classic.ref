@@ -269,27 +269,17 @@ Nothing else to report in this section
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:2: either.Right
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:3: both.left
 
-./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:5: sum.Used_by_include: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:6: sum.Used_by_module_alias: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:8: sum.Unused
-./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:13: product.used_by_include: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:14: product.used_by_module_alias: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:16: product.unused
-./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:5: sum.Used_by_include: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:6: sum.Used_by_module_alias: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:8: sum.Unused
-./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:13: product.used_by_include: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:14: product.used_by_module_alias: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:16: product.unused
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:3: sum.Used_by_explicit_equation: Should not be detected
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:4: sum.Used_by_hidden_equation: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:6: sum.Used_by_module_alias: Should not be detected
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:7: sum.Used_directly: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:8: sum.Unused
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:11: product.used_by_explicit_equation: Should not be detected
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:12: product.used_by_hidden_equation: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:14: product.used_by_module_alias: Should not be detected
-./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:15: product.used_directly: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_include.mli:16: product.unused
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_module_alias.mli:4: Alias.sum.Used_by_explicit_equation: Should not be detected
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_module_alias.mli:5: Alias.sum.Used_by_hidden_equation: Should not be detected
@@ -754,7 +744,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 625
+Total: 615
 Success: 601
-Failed: 24
-Ratio: 96.16%
+Failed: 14
+Ratio: 97.7235772358%

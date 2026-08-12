@@ -132,6 +132,43 @@ let rec check_style t loc =
       | _ -> ()
 
 
+let add_type_eq component_path eq_type_path component_name =
+  (* Store t1 = t2 equivalence, with t2 assumed to be defined outside the
+     current compilation unit *)
+  let eq_path = eq_type_path ^ "." ^ component_name in
+  equivalences := (component_path, eq_path) :: !equivalences
+
+let collect_equivalence_from_include ~incl_id ~path type_decl =
+  let state = State.get_current () in
+  (* internal path *)
+  let type_path =
+    let module_id = State.File_infos.get_modname state.file_infos in
+    module_id :: List.rev_append !DeadCommon.mods path
+    |> String.concat "."
+  in
+  (* external path, belongs to incl_id *)
+  let eq_type_path =
+    Longident.flatten incl_id @ path
+    |> String.concat "."
+  in
+  let add_type_eq component_id =
+    let component_name = Ident.name component_id in
+    (* internal path *)
+    let component_path = type_path ^ "." ^ component_name in
+    match Hashtbl.find_opt fields component_path with
+    | None -> () (* The comonent_path is not undefined (thus, unexported) *)
+    | Some _ ->
+        (* The component_path is known because the current compilation unit
+           defines it *)
+        add_type_eq component_path eq_type_path component_name
+  in
+  match type_decl.type_kind with
+    | Type_record (l, _) ->
+        List.iter (fun {Types.ld_id; _} -> add_type_eq ld_id) l
+    | Type_variant (l, _) ->
+        List.iter (fun {Types.cd_id; _} -> add_type_eq cd_id) l
+    | _ -> ()
+
 let tstr typ =
   let state = State.get_current() in
   let modname = State.File_infos.get_modname state.file_infos in
@@ -142,7 +179,7 @@ let tstr typ =
      components, for later resolution of equivalence classes and merging
      all their references (see {!prepare_report} below).
   *)
-  let equivalent_type_path =
+  let eq_type_path =
     match typ.typ_manifest with
     | Some {ctyp_desc=Ttyp_constr (_, {txt;  _}, _); _} ->
         let path = String.concat "." (Longident.flatten txt) in
@@ -151,27 +188,22 @@ let tstr typ =
   in
 
   let handle_external_type_eq : string -> string -> unit =
-    (* Store t1 = t2 equivalence, with t2 assumed to be defined outside the
-       current compilation unit *)
-    match equivalent_type_path with
+    match eq_type_path with
     | None -> fun _ _ -> ()
-    | Some equivalent_type_path ->
-        fun path component_name ->
-          let eq_path =
-            equivalent_type_path ^ "." ^ component_name
-          in
-          equivalences := (path, eq_path) :: !equivalences
+    | Some eq_type_path ->
+        fun component_path component_name ->
+          add_type_eq component_path eq_type_path component_name
   in
 
   let handle_internal_type_eq : Lexing.position -> string -> unit =
     (* Store t1 = t2 equivalence as a dependency, with t2 defined within the
        current compilation unit *)
-    match equivalent_type_path with
+    match eq_type_path with
     | None -> fun _ _ -> ()
-    | Some equivalent_type_path ->
+    | Some eq_type_path ->
         fun loc component_name ->
           let eq_path =
-            String.concat "." [modname; equivalent_type_path; component_name]
+            String.concat "." [modname; eq_type_path; component_name]
           in
           match Hashtbl.find_opt fields eq_path with
           | None -> () (* t2 is not defined locally *)

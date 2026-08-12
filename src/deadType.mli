@@ -17,6 +17,22 @@ val to_string : Types.type_expr -> string
 val check_style : Types.type_expr -> Lexing.position -> unit
   (** Look for bad style typing. (i.e. Argument expecting an optional argument) *)
 
+val collect_equivalence_from_include :
+  incl_id: Longident.t ->
+  path: string list ->
+  Types.type_declaration
+  -> unit
+(** [collect_equivalence_from_include ~incl_id ~path type_decl]
+    stores equivalences between components of the included [type_decl]
+    defined in [incl_id] at [path] and the same components in the same
+    type at [path_at_include @ path] in the current compilation unit if it is exported.
+    [path] must not be empty and is represented forward (i.e. the type name
+    is at the end).
+
+    E.g. the .mli declares [type t = (* type_decl *)] whereas the .ml
+         [include M] and [M] also declares [type t = (* type_decl *)]
+*)
+
 val tstr : Typedtree.type_declaration -> unit
 
 val is_unit : Types.type_expr -> bool
