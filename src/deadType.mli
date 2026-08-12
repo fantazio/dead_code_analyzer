@@ -17,6 +17,26 @@ val to_string : Types.type_expr -> string
 val check_style : Types.type_expr -> Lexing.position -> unit
   (** Look for bad style typing. (i.e. Argument expecting an optional argument) *)
 
+val collect_equivalence_from_module_alias :
+  rev_alias_path: string list ->
+  original_path: string list ->
+  sub_path: string list ->
+  Types.type_declaration
+  -> unit
+(** [collect_equivalence_from_module_alias ~rev_alias_path ~original_path ~sub_path type_decl]
+    stores equivalences between components of the [type_decl] defined in
+    the current compilation unit at [sub_path] in the module defined at
+    [List.rev rev_alias_path], if they are exported, and the same components
+    in the same type at [sub_path] in the aliased module at [original_path]
+    if this module defined outside the current compilation unit.
+    [rev_alias_path] must not be empty and is represented backward
+    (i.e. the type name is at the head).
+
+    E.g. the .mli declares [module M : sig type t = (* type_decl *) end]
+         and the .ml [module M = N] and [N] also declares
+         [type t = (* type_decl *)]
+*)
+
 val collect_equivalence_from_include :
   incl_id: Longident.t ->
   path: string list ->
@@ -29,7 +49,7 @@ val collect_equivalence_from_include :
     [path] must not be empty and is represented forward (i.e. the type name
     is at the end).
 
-    E.g. the .mli declares [type t = (* type_decl *)] whereas the .ml
+    E.g. the .mli declares [type t = (* type_decl *)] and the .ml
          [include M] and [M] also declares [type t = (* type_decl *)]
 *)
 

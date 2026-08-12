@@ -105,9 +105,12 @@ let structure_item super self i =
   begin match i.str_desc with
   | Tstr_type  (_, l) when Config.must_report_section sections.types ->
       List.iter DeadType.tstr l
-  | Tstr_module  {mb_name = {txt = Some txt; _}; _} ->
+  | Tstr_module  ({mb_name = {txt = Some txt; _}; _} as mb) ->
       mods := txt :: !mods;
-      DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
+      DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined;
+      let modname = State.File_infos.get_modname state.file_infos in
+      let path = !mods @ [modname] in
+      DeadSign.collect_equivalence_from_module_alias ~path mb
   | Tstr_class l when Config.must_report_section sections.methods ->
       List.iter DeadObj.tstr l
   | Tstr_include incl_decl ->
@@ -381,6 +384,7 @@ let eof loc_dep =
   end;
   VdNode.eof ();
   DeadObj.eof ();
+  DeadSign.eof ();
   DeadType.dependencies := [];
   Hashtbl.reset incl
 
