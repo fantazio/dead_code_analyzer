@@ -110,30 +110,10 @@ let structure_item super self i =
       DeadMod.defined := String.concat "." (List.rev !mods) :: !DeadMod.defined
   | Tstr_class l when Config.must_report_section sections.methods ->
       List.iter DeadObj.tstr l
-  | Tstr_include i ->
-      let collect_include signature =
-        let prev_last_loc = !last_loc in
-        let module_id =
-          State.File_infos.get_modname state.file_infos
-          |> Ident.create_persistent
-        in
-        let path = [module_id] in
-        List.iter
-          (DeadSign.collect_export_from_include ~path)
-          signature;
-        last_loc := prev_last_loc;
-      in
-      let rec includ mod_expr =
-        match mod_expr.mod_desc with
-        | Tmod_ident (_, _) -> collect_include (Utils.signature_of_modtype mod_expr.mod_type)
-        | Tmod_structure structure -> collect_include structure.str_type
-        | Tmod_unpack (_, mod_type) -> collect_include (Utils.signature_of_modtype mod_type)
-        | Tmod_functor (_, mod_expr)
-        | Tmod_apply (_, mod_expr, _)
-        | Tmod_apply_unit mod_expr
-        | Tmod_constraint (mod_expr, _, _, _) -> includ mod_expr
-      in
-      includ i.incl_mod
+  | Tstr_include incl_decl ->
+      let prev_last_loc = !last_loc in
+      DeadSign.collect_from_include incl_decl;
+      last_loc := prev_last_loc
   | _ -> ()
   end;
   let r = super.Tast_mapper.structure_item self i in

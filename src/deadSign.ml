@@ -239,21 +239,67 @@ let collect_export_from_structure ~path ~comp_unit structure =
   collect_structure ~path structure
 
 
-
-let rec collect_export_from_include ~path sig_item =
+let collect_from_include incl_decl =
+  (* Get incl_decl's signature and export classes and objects in
+     DeadCommon.incl.
+     If the incl_decl is an ident, then store the equivalence between its
+     types and those of the current compilation unit.
+  *)
+  let rec get_mod_name_and_signature mod_expr =
+    match mod_expr.Typedtree.mod_desc with
+    | Tmod_ident (_, {txt; _}) ->
+        let signature = Utils.signature_of_modtype mod_expr.mod_type in
+        (Some txt, signature)
+    | Tmod_structure structure ->
+        (None, structure.str_type)
+    | Tmod_unpack (_, mod_type) ->
+        let signature = Utils.signature_of_modtype mod_type in
+        (None, signature)
+    | Tmod_functor (_, mod_expr)
+    | Tmod_apply (mod_expr, _, _)
+    | Tmod_apply_unit mod_expr
+    | Tmod_constraint (mod_expr, _, _, _) ->
+        get_mod_name_and_signature mod_expr
+  in
+  (* incl_id is used to identify and store type equivalences *)
+  let incl_id, signature =
+    get_mod_name_and_signature incl_decl.Typedtree.incl_mod
+  in
+  (* path to the module where include happens *)
+  let current_path =
+    let state = State.get_current () in
+    let module_id = State.File_infos.get_modname state.file_infos in
+    !DeadCommon.mods @ [module_id]
+    |> List.map Ident.create_persistent
+  in
+  (* comp_unit = DeadCommon._include enables exports from outside the current
+     compilation unit *)
   let comp_unit = DeadCommon._include in
+  (* exports from include are stored in their dedicated stock*)
   let stock = DeadCommon.incl in
-  match (sig_item : Types.signature_item) with
-  | Sig_value (id, ({val_loc; _} as value), _)
-    when not val_loc.Location.loc_ghost ->
-      export_object ~path ~comp_unit ~stock id value
-  | Sig_class (id, cd, _, _) ->
-      export_class ~path ~comp_unit ~stock id cd
-  | Sig_module (id, _, {Types.md_type; _}, _, _) ->
-      let path = id :: path in
-      Utils.signature_of_modtype md_type
-      |> List.iter (collect_export_from_include ~path)
-  | _ -> ()
+  let rec collect_from_sig_item ~path sig_item =
+    (* [path] is the path within the included module *)
+    match (sig_item : Types.signature_item) with
+    | Sig_value (id, ({val_loc; _} as value), _)
+      when not val_loc.Location.loc_ghost ->
+        let path = path @ current_path in
+        export_object ~path ~comp_unit ~stock id value
+    | Sig_class (id, cd, _, _) ->
+        let path = path @ current_path in
+        export_class ~path ~comp_unit ~stock id cd
+    | Sig_module (id, _, {Types.md_type; _}, _, _) ->
+        let path = id :: path in
+        Utils.signature_of_modtype md_type
+        |> List.iter (collect_from_sig_item ~path)
+    | Sig_type (id, t, _, _) ->
+        Option.iter
+          (fun incl_id ->
+            let path = List.rev_map Ident.name (id :: path) in
+            DeadType.collect_equivalence_from_include ~incl_id ~path t)
+          incl_id
+    | _ -> ()
+  in
+  List.iter (collect_from_sig_item ~path:[]) signature
 
 
 let correct_export sig_item =
