@@ -264,7 +264,18 @@ let collect_from_include incl_decl =
   let rec get_mod_name_and_signature mod_expr =
     match mod_expr.Typedtree.mod_desc with
     | Tmod_ident (_, {txt; _}) ->
-        let signature = Utils.signature_of_modtype mod_expr.mod_type in
+        let mt =
+        match mod_expr.mod_type with
+          | Mty_alias _ ->
+              (*  find the original signature in the env *)
+              begin try
+                let env = Envaux.env_of_only_summary mod_expr.mod_env in
+                Env.scrape_alias env mod_expr.mod_type
+              with Envaux.(Error (Module_not_found _)) -> mod_expr.mod_type
+              end
+          | _ -> mod_expr.mod_type
+        in
+        let signature = Utils.signature_of_modtype mt in
         (Some txt, signature)
     | Tmod_structure structure ->
         (None, structure.str_type)
@@ -317,22 +328,27 @@ let collect_from_include incl_decl =
   in
   List.iter (collect_from_sig_item ~path:[]) signature
 
+
 let collect_equivalence_from_module_alias ~path module_binding =
   match (module_binding : Typedtree.module_binding) with
   | {mb_id = None; _} -> ()
   | {mb_id = Some _; mb_expr; _} ->
       let rev_alias_path = path in
-      let rec collect_from_sig_item ~original_path ?(sub_path=[]) sig_item =
+      let rec collect_from_sig_item
+          ~is_internal ~original_path ?(sub_path=[]) sig_item
+      =
         match (sig_item : Types.signature_item) with
 
         | Sig_module (id, _, {Types.md_type; _}, _, _) ->
             let sub_path = Ident.name id :: sub_path in
             Utils.signature_of_modtype md_type
-            |> List.iter (collect_from_sig_item ~original_path ~sub_path)
+            |> List.iter
+                (collect_from_sig_item ~is_internal ~original_path ~sub_path)
 
         | Sig_type (id, t, _, _) ->
             let sub_path = List.rev (Ident.name id :: sub_path) in
             DeadType.collect_equivalence_from_module_alias
+              ~is_internal
               ~rev_alias_path
               ~original_path
               ~sub_path
@@ -342,14 +358,35 @@ let collect_equivalence_from_module_alias ~path module_binding =
       in
       let rec collect_from_module_expr mod_expr =
         match mod_expr.Typedtree.mod_desc with
-        | Tmod_ident (_, {txt; _}) ->
-            begin match Hashtbl.find_opt exported_modules rev_alias_path with
-              | None -> () (* module is not exported *)
-              | Some mt ->
-                  let original_path = Longident.flatten txt in
-                  Utils.signature_of_modtype mt
-                  |> List.iter (collect_from_sig_item ~original_path)
-            end
+        | Tmod_ident (mod_path, _) ->
+            let env =
+              try
+                Some (Envaux.env_of_only_summary mod_expr.mod_env)
+              with
+                Envaux.(Error (Module_not_found _)) -> None
+            in
+            let internal_md =
+              Option.bind env
+                (fun env ->
+                  try
+                    Some (Env.find_module mod_path env)
+                  with Not_found -> None
+                )
+            in
+            let mt =
+              match Hashtbl.find_opt exported_modules rev_alias_path with
+              | Some _ as mt -> mt
+              | None -> Option.map (fun md -> md.Types.md_type) internal_md
+            in
+            Option.iter
+              (fun mt ->
+                let original_path = Path.name mod_path in
+                let is_internal = Option.is_some internal_md in
+                Utils.signature_of_modtype mt
+                |> List.iter
+                    (collect_from_sig_item ~is_internal ~original_path)
+              )
+              mt
         | Tmod_constraint (mod_expr, _, _, _)
         | Tmod_functor (_, mod_expr)
         | Tmod_apply (mod_expr, _, _)

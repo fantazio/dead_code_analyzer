@@ -139,70 +139,79 @@ let add_type_eq component_path eq_type_path component_name =
   let eq_path = eq_type_path ^ "." ^ component_name in
   equivalences := (component_path, eq_path) :: !equivalences
 
+(** Attempt to find a valid path by shortening [internal_path] until
+    only the head is left.
+    [internal_path] is built in reverse: that head is equivalent to the
+    external path (in the right order), the end is the current compilation
+    unit's name, and the whole path is initially the longest to the
+    point of equivalence.
+    Thus, when only the head is left, this function is equivalent to
+    adding an external type_eq..
+*)
+let rec add_type_eq_internal ~internal_path ~component_path ~component_name =
+  match internal_path with
+  | [] -> assert false (* There must be at least one element *)
+  | external_type_path :: [] -> (* external alias *)
+      add_type_eq component_path external_type_path component_name
+  | external_type_path :: rev_internal_path ->
+      let eq_type_path =
+        List.rev internal_path |> String.concat "."
+      in
+      let eq_component_path = eq_type_path ^ "." ^ component_name in
+      match Hashtbl.find_opt fields eq_component_path with
+      | Some _ -> (* internal alias *)
+          add_type_eq component_path eq_type_path component_name
+      | None ->
+          let internal_path =
+            match rev_internal_path with
+            | [] | _::[] -> external_type_path :: []
+            | _::rev_internal_path -> external_type_path ::rev_internal_path
+          in
+          add_type_eq_internal ~internal_path ~component_path ~component_name
 
-let collect_equivalence_from_module_alias ~rev_alias_path ~original_path ~sub_path type_decl =
+let collect_equivalence_from_module_alias
+    ~is_internal ~rev_alias_path ~original_path ~sub_path type_decl
+=
   let type_path =
     List.rev_append rev_alias_path sub_path
     |> String.concat "."
   in
-  let add_type_eq component_id =
+  let original_eq_type_path =
+    String.concat "." (original_path :: sub_path)
+  in
+  let add_type_eq_internal =
+    if is_internal then
+      let internal_path = original_eq_type_path :: List.tl rev_alias_path in
+      add_type_eq_internal ~internal_path
+    else
+      fun ~component_path ~component_name ->
+        add_type_eq component_path original_eq_type_path component_name
+  in
+  let add_type_eq loc component_id =
     let component_name = Ident.name component_id in
     let component_path = type_path ^ "." ^ component_name in
-    match Hashtbl.find_opt fields component_path with
-    | None -> () (* The component_path is not undefined (thus, unexported) *)
-    | Some _ ->
-        (* The component_path is known because the current compilation unit
-           defines it *)
-        let original_eq_type_path =
-          String.concat "." (original_path @ sub_path)
-        in
-        let rec add_eq_type internal_path =
-          (* internal_path is a tentative path  to the aliased type
-             internally. It ends with original_eq_type_path, which is
-             the shortest possible path to the aliased type within the
-             current compilation unit *)
-          match internal_path with
-          | None -> (* the equivalent type is external *)
-              add_type_eq component_path original_eq_type_path component_name
-          | Some internal_path ->
-              let eq_type_path = String.concat "." internal_path in
-              let eq_component_path = eq_type_path ^ "." ^ component_name in
-              match Hashtbl.find_opt fields eq_component_path with
-              | Some _ -> () (* local alias *)
-              | None ->
-                  let internal_path =
-                    match internal_path with
-                    | [] | _::[] -> None
-                    | _::internal_path -> Some internal_path
-                  in
-                  add_eq_type internal_path
-        in
-        (* *)
-        let internal_path =
-          original_eq_type_path :: List.tl rev_alias_path
-          |> List.rev
-        in
-        add_eq_type (Some internal_path)
-
+    if not (Hashtbl.mem fields component_path) then
+      Hashtbl.add fields component_path loc.Location.loc_start;
+    add_type_eq_internal ~component_path ~component_name
   in
   match type_decl.type_kind with
     | Type_record (l, _) ->
-        List.iter (fun {Types.ld_id; _} -> add_type_eq ld_id) l
+        List.iter (fun {Types.ld_id; ld_loc; _} -> add_type_eq ld_loc ld_id) l
     | Type_variant (l, _) ->
-        List.iter (fun {Types.cd_id; _} -> add_type_eq cd_id) l
+        List.iter (fun {Types.cd_id; cd_loc; _} -> add_type_eq cd_loc cd_id) l
     | _ -> ()
 
 
 let collect_equivalence_from_include ~incl_id ~path type_decl =
   let state = State.get_current () in
+  let module_id = State.File_infos.get_modname state.file_infos in
   (* internal path *)
+  let rev_curr_path = !DeadCommon.mods @ [module_id] in
   let type_path =
-    let module_id = State.File_infos.get_modname state.file_infos in
-    module_id :: List.rev_append !DeadCommon.mods path
+    List.rev_append rev_curr_path path
     |> String.concat "."
   in
-  (* external path, belongs to incl_id *)
-  let eq_type_path =
+  let original_eq_type_path =
     Longident.flatten incl_id @ path
     |> String.concat "."
   in
@@ -210,12 +219,8 @@ let collect_equivalence_from_include ~incl_id ~path type_decl =
     let component_name = Ident.name component_id in
     (* internal path *)
     let component_path = type_path ^ "." ^ component_name in
-    match Hashtbl.find_opt fields component_path with
-    | None -> () (* The component_path is not undefined (thus, unexported) *)
-    | Some _ ->
-        (* The component_path is known because the current compilation unit
-           defines it *)
-        add_type_eq component_path eq_type_path component_name
+    let internal_path = original_eq_type_path :: rev_curr_path in
+      add_type_eq_internal ~internal_path ~component_path ~component_name
   in
   match type_decl.type_kind with
     | Type_record (l, _) ->
@@ -250,27 +255,28 @@ let tstr typ =
           add_type_eq component_path eq_type_path component_name
   in
 
-  let handle_internal_type_eq : Lexing.position -> string -> unit =
+  let handle_internal_type_eq : string -> string -> unit =
     (* Store t1 = t2 equivalence as a dependency, with t2 defined within the
        current compilation unit *)
     match eq_type_path with
     | None -> fun _ _ -> ()
     | Some eq_type_path ->
-        fun loc component_name ->
-          let eq_path =
-            String.concat "." [modname; eq_type_path; component_name]
+        fun component_path component_name ->
+          let eq_type_path = String.concat "." [modname; eq_type_path] in
+          let eq_component_path =
+            String.concat "." [eq_type_path; component_name]
           in
-          match Hashtbl.find_opt fields eq_path with
+          match Hashtbl.find_opt fields eq_component_path with
           | None -> () (* t2 is not defined locally *)
-          | Some eq_loc ->
-              dependencies := (eq_loc, loc) :: !dependencies;
+          | Some _ ->
+              add_type_eq component_path eq_type_path component_name
   in
 
-  let handle_type_dep loc path_loc component_name =
-    handle_internal_type_eq loc component_name;
+  let handle_type_dep loc path_loc component_path component_name =
+    handle_internal_type_eq component_path component_name;
     if path_loc <> loc then
       (* store dependency between .ml and .mli *)
-      dependencies := (path_loc, loc) :: !dependencies;
+      dependencies := (path_loc, loc) :: !dependencies
   in
 
   let assoc name loc =
@@ -286,10 +292,12 @@ let tstr typ =
     in
     handle_external_type_eq path component_name;
     match Hashtbl.find_opt fields path with
-    | None -> Hashtbl.add fields path loc
+    | None ->
+        Hashtbl.add fields path loc;
+        handle_internal_type_eq path component_name
     | Some path_loc ->
         (* The path is known because the current compilation unit exports it *)
-        handle_type_dep loc path_loc component_name
+        handle_type_dep loc path_loc path component_name
   in
   let assoc name loc ctyp =
     assoc name loc;
