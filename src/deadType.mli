@@ -18,19 +18,23 @@ val check_style : Types.type_expr -> Lexing.position -> unit
   (** Look for bad style typing. (i.e. Argument expecting an optional argument) *)
 
 val collect_equivalence_from_module_alias :
+  is_internal: bool ->
   rev_alias_path: string list ->
-  original_path: string list ->
+  original_path: string ->
   sub_path: string list ->
   Types.type_declaration
   -> unit
 (** [collect_equivalence_from_module_alias ~rev_alias_path ~original_path ~sub_path type_decl]
     stores equivalences between components of the [type_decl] defined in
     the current compilation unit at [sub_path] in the module defined at
-    [List.rev rev_alias_path], if they are exported, and the same components
-    in the same type at [sub_path] in the aliased module at [original_path]
-    if this module defined outside the current compilation unit.
+    [List.rev rev_alias_path], and the same components in the same type
+    at [sub_path] in the aliased module at [original_path].
     [rev_alias_path] must not be empty and is represented backward
     (i.e. the type name is at the head).
+    If [is_internal = true] then there is an attempt to find the aliased
+    definition in the current compilation unit (working upward from the
+    alias path). If not found, then the behavior is the same as if
+    [is_internal = false]: the aliased type is conidered external.
 
     E.g. the .mli declares [module M : sig type t = (* type_decl *) end]
          and the .ml [module M = N] and [N] also declares
