@@ -794,6 +794,8 @@ Nothing else to report in this section
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:2: either.Right
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:3: both.left
 
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:9: sum.Unused
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:18: product.unused
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:8: sum.Unused
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:16: product.unused
 ./examples/docs/fields_and_constructors/limitations/equal_types/via_hidden_equations.mli:8: sum.Unused
@@ -882,6 +884,18 @@ Nothing else to report in this section
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:2: either.Left
 ./examples/docs/fields_and_constructors/code_constructs/polymorphic_type/polymorphic_type_lib.mli:3: both.right
 
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:3: sum.Used_by_explicit_equation
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:4: sum.Used_by_hidden_equation
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:5: sum.Used_by_include
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:6: sum.Used_by_module_alias
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:7: sum.Used_directly
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:8: sum.Used_externally
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:12: product.used_by_explicit_equation
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:13: product.used_by_hidden_equation
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:14: product.used_by_include
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:15: product.used_by_module_alias
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:16: product.used_directly
+./examples/docs/fields_and_constructors/limitations/equal_types/all_internal.mli:17: product.used_externally
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:3: sum.Used_by_explicit_equation
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:4: sum.Used_by_hidden_equation
 ./examples/docs/fields_and_constructors/limitations/equal_types/definitions.ml:5: sum.Used_by_include
