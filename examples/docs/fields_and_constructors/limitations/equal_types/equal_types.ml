@@ -18,3 +18,7 @@ let _ =
 let _ =
   let open Via_module_alias.Alias in
   fun {used_by_module_alias; _} -> Used_by_module_alias
+
+let _ =
+  let open All_internal in
+  fun {used_externally; _} -> Used_externally
