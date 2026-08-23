@@ -175,7 +175,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
         export export_value ~path id value
     #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_alias (sub_pat, id, {loc; _}, uid) ->
-    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_alias (sub_pat, id, {loc; _}, uid, _) ->
     #endif
         let id = Ident.name id in
@@ -190,7 +190,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tpat_lazy pat ->
         collect_value ~path pat
     | Tpat_tuple pats ->
-        #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+        #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
          (* Tpat_tuple's pats changed in OCaml 5.4, from pat list to
             (string option * pat) list. This does the reverse conversion *)
         let pats = List.map snd pats in
@@ -199,7 +199,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tpat_construct (_, _, pats, _)
     #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_array pats ->
-    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_array (_, pats) ->
     #endif
         List.iter (collect_value ~path) pats

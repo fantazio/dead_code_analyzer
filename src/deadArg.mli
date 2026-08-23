@@ -30,7 +30,7 @@ val eocb : unit -> unit
 val options_of_args :
   #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
   (Asttypes.arg_label * expression option) list
-  #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+  #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
   (Asttypes.arg_label * (expression, unit) arg_or_omitted) list
   #endif
   -> (Asttypes.arg_label * expression option) list

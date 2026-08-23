@@ -71,7 +71,7 @@ let deferrable_register_use label expr builddir loc last_loc count_tbl =
   else register_use ()
 
 let options_of_args args =
-  #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+  #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
   (* Texp_apply's args changed in OCaml 5.4, from expression option
      to arg_or_omitted. This does the reverse conversion *)
   let args =
