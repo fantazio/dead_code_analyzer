@@ -4,9 +4,9 @@ let empty = []
 
 module UidTbl = Shape.Uid.Tbl
 
-type uid_to_decl = Typedtree.item_declaration UidTbl.t
+#if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 3, 0)
 
-#if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+type uid_to_decl = NA
 
 let init ~comp_unit_to_path:_ cmt_infos _cmti_uid_to_decl =
   match cmt_infos with
@@ -23,6 +23,8 @@ let init ~comp_unit_to_path:_ cmt_infos _cmti_uid_to_decl =
    information, respectively found in a .cmti's cmt_infos and built using
    the config.paths_to_analyze.
 *)
+
+type uid_to_decl = Typedtree.item_declaration UidTbl.t
 
 let loc_opt_of_item_decl = function
   | Typedtree.Value {val_loc = loc; _}

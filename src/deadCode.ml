@@ -42,7 +42,7 @@ let rec treat_exp exp args =
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
       DeadArg.register_uses loc args
 
-  #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 3, 0)
   | Texp_match (_, comp_l, _) ->
     let val_l = [] in (* effect cases appear in OCaml 5.3 *)
   #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
@@ -69,32 +69,24 @@ let value_binding super self x =
   DeadArg.at_eof := [];
   incr depth;
   let open Asttypes in
-  begin match x with
-  | { vb_pat =
-        { pat_desc = Tpat_var (
-            _,
-            {loc = {Location.loc_start = loc1; loc_ghost = false; _}; _}, _);
-          _};
-      vb_expr =
-        { exp_desc = Texp_ident (
-            _,
-            _,
-            {val_loc = {Location.loc_start = loc2; loc_ghost = false; _}; _});
-          _};
-      _
-    } ->
-      VdNode.merge_locs loc1 loc2;
-      DeadObj.add_equal loc1 loc2
-  | { vb_pat =
-        { pat_desc = Tpat_var (
-            _,
-            {loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _);
-          _};
-      vb_expr = exp;
-      _
-    } ->
-      DeadArg.bind loc exp;
-      DeadObj.add_var loc exp
+  begin match x.vb_pat.pat_desc with
+  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+  | Tpat_var (_, {loc; _})
+  #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+  | Tpat_var (_, {loc; _}, _)
+  #endif
+    when not loc.Location.loc_ghost ->
+      let loc = loc.Location.loc_start in
+      begin match x.vb_expr.exp_desc with
+      | Texp_ident (_, _, {val_loc; _}) when not val_loc.Location.loc_ghost ->
+          let val_loc = val_loc.Location.loc_start in
+          VdNode.merge_locs loc val_loc;
+          DeadObj.add_equal loc val_loc
+      | _ ->
+          let exp = x.vb_expr in
+          DeadArg.bind loc exp;
+          DeadObj.add_var loc exp
+      end
   | _ -> ()
   end;
 
@@ -145,9 +137,18 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   if DeadType.is_unit p.pat_type && sections.style.unit_pat then begin
     match p.pat_desc with
       | Tpat_construct _ -> ()
-      | Tpat_var (_, {txt = "eta"; loc = _}, _)
+      #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_var (_, {txt = "eta"; _})
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_var (_, {txt = "eta"; _}, _)
+      #endif
         when p.pat_loc = Location.none -> ()
-      | Tpat_var (_, {txt; _}, _) -> if check_underscore txt then u txt
+      #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_var (_, {txt; _}) ->
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_var (_, {txt; _}, _) ->
+      #endif
+          if check_underscore txt then u txt
       | Tpat_any -> if state.config.underscore then u "_"
       | Tpat_value tpat_arg ->
         begin match (tpat_arg :> value general_pattern) with
@@ -160,7 +161,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, lab, _) ->
-          #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+          #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 4, 0)
           let lab : Types.label_description = lab in
           #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
           (* The type of lab moved in OCaml 5.4 *)
@@ -226,14 +227,20 @@ let expr super self e =
   | Texp_let (_, [{vb_pat; _}], _)
     when DeadType.is_unit vb_pat.pat_type && sections.style.seq ->
       begin match vb_pat.pat_desc with
-      | Tpat_var (id, _, _) when not (check_underscore (Ident.name id)) -> ()
+      #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_var (id, _)
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_var (id, _, _)
+      #endif
+        when not (check_underscore (Ident.name id)) ->
+          ()
       | _ ->
           register_style
             vb_pat.pat_loc.Location.loc_start
             "let () = ... in ... (=> use sequence)"
       end
 
-  #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 3, 0)
   | Texp_match (_, [{c_lhs; _}], _)
   #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
   | Texp_match (_, [{c_lhs; _}], [], _)
@@ -251,14 +258,24 @@ let expr super self e =
       | _ -> ()
       end
 
-  | Texp_let (
-        Asttypes.Nonrecursive,
-        [{vb_pat = {pat_desc = Tpat_var (id1, _, _); pat_loc = {loc_start = loc; _}; _}; _}],
-        {exp_desc = Texp_ident (Path.Pident id2, _, _); exp_extra = []; _})
-    when id1 = id2
-         && sections.style.binding
-         && check_underscore (Ident.name id1) ->
-      register_style loc "let x = ... in x (=> useless binding)"
+  | Texp_let (Asttypes.Nonrecursive,
+              [{vb_pat; _}],
+              {exp_desc; exp_extra = []; _})
+    ->
+      begin match vb_pat.pat_desc, exp_desc with
+      #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_var (id1, _), Texp_ident (Path.Pident id2, _, _)
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_var (id1, _, _), Texp_ident (Path.Pident id2, _, _)
+      #endif
+        when id1 = id2
+             && sections.style.binding
+             && check_underscore (Ident.name id1)
+        ->
+          let loc = vb_pat.pat_loc.loc_start in
+          register_style loc "let x = ... in x (=> useless binding)"
+      | _ -> ()
+      end
 
   | _ -> ()
   end;
