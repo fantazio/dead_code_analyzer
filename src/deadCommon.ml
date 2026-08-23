@@ -138,7 +138,9 @@ let file_exists fn =
 (* We often simply traverse a Tlink to process the linked type *)
 let rec get_deep_desc typ =
   match Types.get_desc typ with
-  | Tlink t -> get_deep_desc t
+  | Tlink t
+  | Tpoly (t, []) ->
+      get_deep_desc t
   | t -> t
 
 
