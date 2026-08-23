@@ -157,7 +157,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
         (fun (_, lab, _) ->
           #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
           let lab : Types.label_description = lab in
-          #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+          #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
           (* The type of lab moved in OCaml 5.4 *)
           let lab : Data_types.label_description = lab in
           #endif

@@ -319,7 +319,7 @@ let class_structure cl_struct =
     match pat.pat_desc with
     #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_alias (pat, _, _, _) ->
-    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_alias (pat, _, _, _, _) ->
     #endif
         add_aliases pat

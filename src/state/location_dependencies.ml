@@ -22,6 +22,9 @@ let fill_from_cmt_tbl uid_to_decl res_uid_to_loc =
 
 let find_opt_external_uid_loc ~comp_unit_to_path = function
   | Shape.Uid.(Compilation_unit _ | Internal | Predef _) -> None
+  #if OCAML_VERSION >= (5, 5, 0) && OCAML_VERSION < (5, 6, 0)
+  | Local_opaque_item _ -> None
+  #endif
   | Item {comp_unit; from; _} as uid ->
       let ( let* ) x f = Option.bind x f in
       let cached =

@@ -130,7 +130,7 @@ module Extension = struct
       match get_deep_desc typ with
       | Tarrow (_, t, _, _) -> process (p, t, call_site)
       | Ttuple ts ->
-          #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+          #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
            (* Ttuple's ts' content changed in OCaml 5.4, from type_expr to
               (string option * type_expr). This does the reverse conversion *)
           let ts = List.map snd ts in
