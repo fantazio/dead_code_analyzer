@@ -34,7 +34,9 @@ let main_files = Hashtbl.create 256   (* names -> paths *)
 
 let rec treat_exp exp args =
   match exp.exp_desc with
-  | Texp_apply (exp, in_args) -> treat_exp exp (in_args @ args)
+  | Texp_apply (exp, in_args) ->
+      let in_args = DeadArg.options_of_args in_args in
+      treat_exp exp (in_args @ args)
 
   | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; _}; _})
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
@@ -152,8 +154,15 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   begin match p.pat_desc with
   | Tpat_record (l, _) ->
       List.iter
-        (fun (_, {Types.lbl_loc = {Location.loc_start = lab_loc; _}; _}, _) ->
-           if exported ~is_type:true sections.types lab_loc then
+        (fun (_, lab, _) ->
+          #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
+          let lab : Types.label_description = lab in
+          #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+          (* The type of lab moved in OCaml 5.4 *)
+          let lab : Data_types.label_description = lab in
+          #endif
+          let lab_loc = lab.lbl_loc.Location.loc_start in
+          if exported ~is_type:true sections.types lab_loc then
             DeadType.collect_references lab_loc pat_loc
         )
         l
@@ -194,6 +203,7 @@ let expr super self e =
 
 
   | Texp_apply (exp, args) ->
+      let args = DeadArg.options_of_args args in
       if Config.must_report_opt_args state.config then
         treat_exp exp args;
       begin match exp.exp_desc with

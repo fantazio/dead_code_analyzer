@@ -70,6 +70,22 @@ let deferrable_register_use label expr builddir loc last_loc count_tbl =
     else register_use ()
   else register_use ()
 
+let options_of_args args =
+  #if OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+  (* Texp_apply's args changed in OCaml 5.4, from expression option
+     to arg_or_omitted. This does the reverse conversion *)
+  let args =
+    List.map
+      (fun (lab, arg) ->
+        match arg with
+        | Arg expr -> lab, Some expr
+        | Omitted _ -> lab, None
+      )
+      args
+  in
+  #endif
+  args
+
 let rec register_uses builddir loc args =
   List.iter
     (fun (_, e) -> Option.iter (register_higher_order_uses builddir) e)
@@ -140,7 +156,9 @@ and register_higher_order_uses builddir e =
       | (Tpat_var _, Texp_apply (_, args)) ->
           if c_lhs.pat_loc.loc_ghost && c_rhs.exp_loc.loc_ghost
              && expr.exp_loc.loc_ghost
-          then register_uses builddir ident_loc args
+          then
+            let args = options_of_args args in
+            register_uses builddir ident_loc args
       | _ -> ()
     )
   | _ -> ()
