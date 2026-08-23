@@ -169,11 +169,21 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tpat_constant _
     | Tpat_variant (_, None, _) ->
         ()
+    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+    | Tpat_var (id, {loc; _}) ->
+        let uid = Shape.Uid.internal_not_actually_unique in
+        (* uid appear in OCaml 5.2. Dummy value because we do not rely on it *)
+    #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_var (id, {loc; _}, uid) ->
+    #endif
         let id = Ident.name id in
         let value = value_of pat loc uid in
         export export_value ~path id value
-    #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+    | Tpat_alias (sub_pat, id, {loc; _}) ->
+        let uid = Shape.Uid.internal_not_actually_unique in
+        (* uid appear in OCaml 5.2. Dummy value because we do not rely on it *)
+    #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_alias (sub_pat, id, {loc; _}, uid) ->
     #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_alias (sub_pat, id, {loc; _}, uid, _) ->
@@ -197,7 +207,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
         #endif
         List.iter (collect_value ~path) pats
     | Tpat_construct (_, _, pats, _)
-    #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_array pats ->
     #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_array (_, pats) ->

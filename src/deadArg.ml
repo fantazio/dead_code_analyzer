@@ -148,7 +148,11 @@ and register_higher_order_uses builddir e =
       in
       let$ (c_lhs, c_rhs) =
         match expr.exp_desc with
+        #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+        | Texp_function {cases = [case]; _} ->
+        #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
         | Texp_function (_, Tfunction_cases {cases = [case]; _}) ->
+        #endif
             Some (case.c_lhs, case.c_rhs)
         | _ -> None
       in
@@ -174,32 +178,13 @@ let register_uses val_loc args =
 let rec bind loc expr =
   let state = State.get_current () in
   match expr.exp_desc with
-  | Texp_function (params, body) -> (
-      let check_param_style = function
-        | Tparam_pat {pat_type; _}
-        | Tparam_optional_default ({pat_type; _}, _) ->
-            DeadType.check_style pat_type expr.exp_loc.Location.loc_start
-      in
-      let register_optional_param = function
-        | Asttypes.Optional s
-          when Config.must_report_opt_args state.config ->
-            let (opts, next) = VdNode.get loc in
-            VdNode.update loc (s :: opts, next)
-        | _ -> ()
-      in
-      List.iter
-        (fun {fp_kind; fp_arg_label; _} ->
-          check_param_style fp_kind;
-          register_optional_param fp_arg_label
-        )
-        params;
-      match body with
-      | Tfunction_body exp -> bind loc exp
-      | Tfunction_cases {cases = [{c_lhs = {pat_type; _}; c_rhs = exp; _}]; _} ->
-          DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
-          bind loc exp
-      | _ -> ()
-    )
+  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+  | Texp_function {arg_label; cases; _} ->
+      bind_function loc expr arg_label cases
+  #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+  | Texp_function (params, body) ->
+      bind_function loc expr params body
+  #endif
   | exp_desc
     when Config.must_report_opt_args state.config
          && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
@@ -214,6 +199,48 @@ let rec bind loc expr =
       in
       VdNode.merge_locs loc loc2
   | _ -> ()
+
+and bind_function loc expr =
+  let state = State.get_current () in
+  let register_optional_param = function
+    | Asttypes.Optional s
+      when Config.must_report_opt_args state.config ->
+        let (opts, next) = VdNode.get loc in
+        VdNode.update loc (s :: opts, next)
+    | _ -> ()
+  in
+  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+  fun arg_label -> function
+    | {c_lhs = {pat_type; _}; c_rhs; _}::[] ->
+        DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
+        register_optional_param arg_label;
+        bind loc c_rhs
+    | _ -> ()
+  #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+  let process_params params =
+    let check_param_style = function
+      | Tparam_pat {pat_type; _}
+      | Tparam_optional_default ({pat_type; _}, _) ->
+          DeadType.check_style pat_type expr.exp_loc.Location.loc_start
+    in
+    List.iter
+      (fun {fp_kind; fp_arg_label; _} ->
+        check_param_style fp_kind;
+        register_optional_param fp_arg_label
+      )
+      params
+  in
+  let process_body = function
+    | Tfunction_body exp -> bind loc exp
+    | Tfunction_cases {cases = [{c_lhs = {pat_type; _}; c_rhs = exp; _}]; _} ->
+        DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
+        bind loc exp
+    | _ -> ()
+  in
+  fun params body ->
+    process_params params;
+    process_body body
+  #endif
 
                 (********   WRAPPING  ********)
 
