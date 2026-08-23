@@ -288,10 +288,17 @@ let add_var loc expr =
     | Texp_ident (_, _, {Types.val_loc; _}) ->
         `Ident val_loc.Location.loc_start
     (* Cases not traversed by repr_exp *)
+    #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+    | Texp_match (_, cases, _) ->
+        find_first_case_kind cases
+    | Texp_try (_, cases) ->
+        find_first_case_kind cases
+    #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
     | Texp_match (_, cases, _, _) ->
         find_first_case_kind cases
     | Texp_try (_, cases, _) ->
         find_first_case_kind cases
+    #endif
     | Texp_ifthenelse (_, then_, Some else_) ->
         find_first_kind [then_; else_]
     (* Default *)
@@ -317,7 +324,7 @@ let class_structure cl_struct =
         add_equal pat.pat_loc.Location.loc_start !last_class
     | _ -> () end;
     match pat.pat_desc with
-    #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
+    #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_alias (pat, _, _, _) ->
     #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_alias (pat, _, _, _, _) ->

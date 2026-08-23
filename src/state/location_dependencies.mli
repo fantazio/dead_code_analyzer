@@ -10,11 +10,20 @@ val init :
   -> Cmt_format.cmt_infos
   -> uid_to_decl option
   -> (t, string) result
-(** [init ~comp_unit_to_path cmt_infos cmti_infos cmti_uid_to_decl] expects
+(** [init ~comp_unit_to_path cmt_infos cmti_uid_to_decl] expects
     [cmt_infos.cmt_annots = Implementation _].
-    It reads the [cmt_infos] and the [cmti_uid_to_decl] to retrieve their
-    and converts [cmt_infos.cmt_declaration_dependencies] into a single [t].
     It returns an [Ok t] with [t] on success.
-    In case the [cmt_infos] does not contain an implementation, it returns an
-    [Err msg] with msg a string describing the issue.
-    [comp_unit_to_path] is used to load external cm files if necessary. *)
+    In case the [cmt_infos] does not contain an implementation, it returns
+    an [Err msg] with msg a string describing the issue.
+
+    In OCaml <= 5.2, it simply maps [cmt_infos.cmt_value_dependencies] to
+    the correpsonding locations. [comp_unit_to_path] and [cmti_uid_to_decl]
+    are unused.
+
+    In OCaml >= 5.3, it reads [cmt_infos.cmt_uid_to_decl] and
+    [cmti_uid_to_decl] to convert [cmt_infos.cmt_declaration_dependencies]
+    into a single [t] (equivalent to the result provided in OCaml <= 5.2
+    using [cmt_infos.cmt_value_dependencies]).
+    [comp_unit_to_path] is used to load external .cmt and .cmti files if
+    necessary.
+*)
