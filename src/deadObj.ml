@@ -317,7 +317,12 @@ let class_structure cl_struct =
         add_equal pat.pat_loc.Location.loc_start !last_class
     | _ -> () end;
     match pat.pat_desc with
-    | Tpat_alias (pat, _, _, _) -> add_aliases pat
+    #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
+    | Tpat_alias (pat, _, _, _) ->
+    #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 5, 0)
+    | Tpat_alias (pat, _, _, _, _) ->
+    #endif
+        add_aliases pat
     | _ -> ()
   in
   add_aliases cl_struct.cstr_self

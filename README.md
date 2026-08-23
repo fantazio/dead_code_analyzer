@@ -48,8 +48,9 @@ For more information, see the [User documentation](docs/USER_DOC.md)
 
 ## Requirements
 
-- Currently tested and working on **OCaml 5.3**
+- Currently tested and working on **OCaml 5.3 & 5.4**
 - **dune >= 3.20**
+- **cppo**
 
 
 ## Install

@@ -1,6 +1,8 @@
 (executable
  (public_name dead_code_analyzer)
  (name deadCode)
- (libraries compiler-libs.common))
+ (libraries compiler-libs.common)
+ (preprocess (action (run %{bin:cppo} -V OCAML:%{ocaml_version} %{input-file})))
+)
 
 (include_subdirs unqualified)
