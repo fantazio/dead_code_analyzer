@@ -6,6 +6,24 @@ module UidTbl = Shape.Uid.Tbl
 
 type uid_to_decl = Typedtree.item_declaration UidTbl.t
 
+#if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+
+let init ~comp_unit_to_path:_ cmt_infos _cmti_uid_to_decl =
+  match cmt_infos with
+  | Cmt_format.{cmt_annots = Implementation _; cmt_value_dependencies; _} ->
+    let loc_of_vd vd = vd.Types.val_loc.loc_start in
+    cmt_value_dependencies
+    |> List.map (fun (vd1, vd2) -> loc_of_vd vd1, loc_of_vd vd2)
+    |> Result.ok
+  | _ -> Result.error "No implementation found in cmt_infos"
+
+#elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
+(* Since OCaml 5.3, cmt_infos.cmt_value_dependencies is not available.
+   We try to reproduce it using the cmti_uid_to_decl and comp_unit_to_path
+   information, respectively found in a .cmti's cmt_infos and built using
+   the config.paths_to_analyze.
+*)
+
 let loc_opt_of_item_decl = function
   | Typedtree.Value {val_loc = loc; _}
   | Typedtree.Value_binding {vb_pat = {pat_loc = loc; _}; _} ->
@@ -85,3 +103,5 @@ let init ~comp_unit_to_path cmt_infos cmti_uid_to_decl =
     |> cmt_decl_dep_to_loc_dep ~comp_unit_to_path cmt_infos.cmt_declaration_dependencies
     |> Result.ok
   | _ -> Result.error "No implementation found in cmt_infos"
+
+#endif

@@ -42,7 +42,12 @@ let rec treat_exp exp args =
   | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
       DeadArg.register_uses loc args
 
+  #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+  | Texp_match (_, comp_l, _) ->
+    let val_l = [] in (* effect cases appear in OCaml 5.3 *)
+  #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
   | Texp_match (_, comp_l, val_l, _) ->
+  #endif
       let process_cases l =
         List.iter (fun {c_rhs = exp; _} -> treat_exp exp args) l
       in
@@ -155,7 +160,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, lab, _) ->
-          #if OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 4, 0)
+          #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
           let lab : Types.label_description = lab in
           #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
           (* The type of lab moved in OCaml 5.4 *)
@@ -228,7 +233,11 @@ let expr super self e =
             "let () = ... in ... (=> use sequence)"
       end
 
+  #if OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 3, 0)
+  | Texp_match (_, [{c_lhs; _}], _)
+  #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)
   | Texp_match (_, [{c_lhs; _}], [], _)
+  #endif
     when DeadType.is_unit c_lhs.pat_type && sections.style.seq ->
       begin match c_lhs.pat_desc with
       | Tpat_value tpat_arg ->
