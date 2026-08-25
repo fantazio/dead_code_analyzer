@@ -10,7 +10,7 @@ module Filepath = struct
     | _ -> filepath
 
   let unit filepath =
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 3, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 3, 0)
     (* reproduce https://github.com/ocaml/ocaml/blob/5.3/parsing/unit_info.ml#L60 *)
     let remove_all_ext basename =
       match String.index basename '.' with
@@ -72,25 +72,28 @@ module Envaux = struct
   let force_setup () = Lazy.force !setup
 
   type paths =
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
     string list
     #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
     Load_path.paths
     #endif
 
+  let init_load_path paths =
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 0, 0)
+    Load_path.init paths
+    #elif OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
+    let auto_include = Load_path.no_auto_include in
+    Load_path.init ~auto_include paths
+    #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+    let auto_include = Load_path.no_auto_include in
+    let visible = paths.Load_path.visible in
+    let hidden = paths.Load_path.hidden in
+    Load_path.init ~auto_include ~visible ~hidden
+    #endif
+
   let set_loadpaths paths =
-    let init_load_path ~auto_include paths =
-      #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
-      Load_path.init ~auto_include paths;
-      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
-      let visible = paths.Load_path.visible in
-      let hidden = paths.Load_path.hidden in
-      Load_path.init ~auto_include ~visible ~hidden;
-      #endif
-    in
     let reset () =
-      let auto_include = Load_path.no_auto_include in
-      init_load_path ~auto_include paths;
+      init_load_path paths;
       Envaux.reset_cache ()
     in
     setup := Lazy.from_fun reset

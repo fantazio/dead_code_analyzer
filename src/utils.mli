@@ -43,7 +43,7 @@ module StringSet : Set.S with type elt = String.t
 
 module Envaux : sig
   type paths =
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
     string list
     #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
     Load_path.paths

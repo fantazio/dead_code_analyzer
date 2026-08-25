@@ -28,7 +28,7 @@ val eocb : unit -> unit
     [eocb] = end of code base. *)
 
 val options_of_args :
-  #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 4, 0)
+  #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 4, 0)
   (Asttypes.arg_label * expression option) list
   #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
   (Asttypes.arg_label * (expression, unit) arg_or_omitted) list
