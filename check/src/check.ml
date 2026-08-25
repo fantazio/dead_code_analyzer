@@ -178,7 +178,7 @@ let normalized_lines_of ~is_res_file filename =
             else Path.normalize_to_unix line
         )
   in
-  In_channel.with_open_text filename In_channel.input_lines
+  In_channel.with_open_text filename Io.input_lines
   |> List.map normalize
 
 let () =

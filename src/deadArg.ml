@@ -148,7 +148,7 @@ and register_higher_order_uses builddir e =
       in
       let$ (c_lhs, c_rhs) =
         match expr.exp_desc with
-        #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+        #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
         | Texp_function {cases = [case]; _} ->
         #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
         | Texp_function (_, Tfunction_cases {cases = [case]; _}) ->
@@ -178,7 +178,7 @@ let register_uses val_loc args =
 let rec bind loc expr =
   let state = State.get_current () in
   match expr.exp_desc with
-  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+  #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
   | Texp_function {arg_label; cases; _} ->
       bind_function loc expr arg_label cases
   #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
@@ -209,7 +209,7 @@ and bind_function loc expr =
         VdNode.update loc (s :: opts, next)
     | _ -> ()
   in
-  #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+  #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
   fun arg_label -> function
     | {c_lhs = {pat_type; _}; c_rhs; _}::[] ->
         DeadType.check_style pat_type expr.exp_loc.Location.loc_start;

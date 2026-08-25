@@ -3,7 +3,7 @@ type t = (Lexing.position * Lexing.position) list
 
 val empty : t (** No signature read *)
 
-#if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 3, 0)
+#if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 3, 0)
 (* The corresponding [cmt_infos.cmt_uid_to_decl] is introduced in
    OCaml 5.2 but not used until OCaml 5.3 (see {!init} below).
    We still provide a constructor to keep the state representation as

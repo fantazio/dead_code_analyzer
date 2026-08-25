@@ -41,7 +41,7 @@ let extract_failed = extract_from (failed_fmt ~isatty:false ())
 
 let pp t =
   let total = total t in
-  let isatty = Out_channel.isatty Out_channel.stdout in
+  let isatty = Io.isatty `Stdout in
   let print_line fmt value =
     Printf.printf (fmt ~isatty ()) value;
     Printf.printf "\n"
