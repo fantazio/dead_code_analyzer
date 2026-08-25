@@ -47,7 +47,7 @@ module Extension = struct
 
   let sig_value (value : Types.value_description) =
     let add strct = match strct.pstr_desc with
-      #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 3, 0)
+      #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 3, 0)
       | Pstr_eval ({pexp_desc = Pexp_constant (Pconst_string (s, _, _));
                     _}, _) ->
       #elif OCAML_VERSION >= (5, 3, 0) && OCAML_VERSION < (5, 6, 0)

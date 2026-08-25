@@ -145,7 +145,7 @@ let rec treat_fields action typ = match get_deep_desc typ with
 let rec repr_exp expr f =
   match expr.exp_desc with
     | Texp_sequence (_, expr)
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
     | Texp_function {cases = {c_rhs=expr; _}::_ ; _}
     #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
     | Texp_function (_, Tfunction_cases { cases = {c_rhs=expr; _}::_ ; _ })
@@ -292,7 +292,7 @@ let add_var loc expr =
     | Texp_ident (_, _, {Types.val_loc; _}) ->
         `Ident val_loc.Location.loc_start
     (* Cases not traversed by repr_exp *)
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 3, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 3, 0)
     | Texp_match (_, cases, _) ->
         find_first_case_kind cases
     | Texp_try (_, cases) ->
@@ -328,7 +328,7 @@ let class_structure cl_struct =
         add_equal pat.pat_loc.Location.loc_start !last_class
     | _ -> () end;
     match pat.pat_desc with
-    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
     | Tpat_alias (pat, _, _) ->
     #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_alias (pat, _, _, _) ->
