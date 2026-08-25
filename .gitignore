@@ -19,6 +19,7 @@
 *.install
 _build
 _opam
+check/src/io.ml
 # tests output
 *.out
 *.err

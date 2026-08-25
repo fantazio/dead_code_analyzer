@@ -169,7 +169,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tpat_constant _
     | Tpat_variant (_, None, _) ->
         ()
-    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
     | Tpat_var (id, {loc; _}) ->
         let uid = Shape.Uid.internal_not_actually_unique in
         (* uid appear in OCaml 5.2. Dummy value because we do not rely on it *)
@@ -179,7 +179,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
         let id = Ident.name id in
         let value = value_of pat loc uid in
         export export_value ~path id value
-    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 2, 0)
+    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 2, 0)
     | Tpat_alias (sub_pat, id, {loc; _}) ->
         let uid = Shape.Uid.internal_not_actually_unique in
         (* uid appear in OCaml 5.2. Dummy value because we do not rely on it *)
@@ -207,7 +207,7 @@ let collect_export_from_structure ~path ~comp_unit structure =
         #endif
         List.iter (collect_value ~path) pats
     | Tpat_construct (_, _, pats, _)
-    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 4, 0)
+    #if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 4, 0)
     | Tpat_array pats ->
     #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
     | Tpat_array (_, pats) ->
@@ -226,7 +226,9 @@ let collect_export_from_structure ~path ~comp_unit structure =
         collect_structure ~path structure
     | Tmod_functor (_, m)
     | Tmod_apply (m, _, _)
-    | Tmod_apply_unit m
+    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 6, 0)
+    | Tmod_apply_unit m (* Constructor introduced in OCaml 5.1 *)
+    #endif
     | Tmod_constraint (m, _, Tmodtype_implicit, _) ->
         collect_module ~path m
     | Tmod_constraint (_, _, Tmodtype_explicit mt, _) ->
@@ -314,7 +316,9 @@ let collect_from_include incl_decl =
         (None, signature)
     | Tmod_functor (_, mod_expr)
     | Tmod_apply (mod_expr, _, _)
-    | Tmod_apply_unit mod_expr
+    #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 6, 0)
+    | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
+    #endif
     | Tmod_constraint (mod_expr, _, _, _) ->
         get_mod_path_and_signature mod_expr
   in
@@ -422,8 +426,10 @@ let collect_eq_from_module_alias ~path module_binding =
               mt
         | Tmod_constraint (mod_expr, _, _, _)
         | Tmod_functor (_, mod_expr)
-        | Tmod_apply (mod_expr, _, _)
-        | Tmod_apply_unit mod_expr ->
+        #if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 6, 0)
+        | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
+        #endif
+        | Tmod_apply (mod_expr, _, _) ->
             collect_from_module_expr mod_expr
         | Tmod_structure _
         | Tmod_unpack (_, _) -> ()

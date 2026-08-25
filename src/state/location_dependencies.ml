@@ -4,7 +4,7 @@ let empty = []
 
 module UidTbl = Shape.Uid.Tbl
 
-#if OCAML_VERSION >= (5, 1, 0) && OCAML_VERSION < (5, 3, 0)
+#if OCAML_VERSION >= (5, 0, 0) && OCAML_VERSION < (5, 3, 0)
 
 type uid_to_decl = NA
 

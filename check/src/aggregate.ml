@@ -92,7 +92,7 @@ let update state line =
 
 let process state filepath =
   let input_lines =
-    In_channel.with_open_text filepath In_channel.input_lines
+    In_channel.with_open_text filepath Io.input_lines
   in
   print_title (Filename.remove_extension filepath);
   let local_state = List.fold_left update State.init input_lines in
