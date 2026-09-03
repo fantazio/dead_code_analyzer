@@ -262,15 +262,31 @@ let expr super self e =
               [{vb_pat; _}],
               {exp_desc; exp_extra = []; _})
     ->
-      begin match vb_pat.pat_desc, exp_desc with
-      #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
-      | Tpat_var (id1, _), Texp_ident (Path.Pident id2, _, _)
-      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
-      | Tpat_var (id1, _, _), Texp_ident (Path.Pident id2, _, _)
-      #endif
-        when id1 = id2
+      let pat_id =
+        match vb_pat.pat_desc with
+          #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
+          | Tpat_var (id, _)
+          #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
+          | Tpat_var (id, _, _)
+          #endif
+            (* let x = ... *)
+          #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
+          | Tpat_alias ({pat_desc=Tpat_any; _}, id, _)
+          #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+          | Tpat_alias ({pat_desc=Tpat_any; _}, id, _, _)
+          #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
+          | Tpat_alias ({pat_desc=Tpat_any; _}, id, _, _, _)
+          #endif
+              (* let (x: t) = ... *)
+            -> Some id
+          | _ -> None
+      in
+      begin match pat_id, exp_desc with
+      | Some pat_id, Texp_ident (Path.Pident exp_id, _, _)
+          (* let x = ... in y *)
+        when pat_id = exp_id (* x = y *)
              && sections.style.binding
-             && check_underscore (Ident.name id1)
+             && check_underscore (Ident.name pat_id)
         ->
           let loc = vb_pat.pat_loc.loc_start in
           register_style loc "let x = ... in x (=> useless binding)"
