@@ -706,7 +706,8 @@ Nothing else to report in this section
 ./examples/using_dune/unwrapped_lib/style/style.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/unwrapped_lib/style/style.ml:4: let () = ... in ... (=> use sequence)
 ./examples/using_dune/unwrapped_lib/style/style.ml:5: let x = ... in x (=> useless binding)
-
+./examples/using_dune/unwrapped_lib/style/style.ml:11: let x = ... in x (=> useless binding): Not detected
+./examples/using_dune/unwrapped_lib/style/style.ml:18: let x = ... in x (=> useless binding): Not detected
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:20: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:22: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:25: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -717,7 +718,8 @@ Nothing else to report in this section
 ./examples/using_dune/wrapped_lib/style/style.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/style/style.ml:4: let () = ... in ... (=> use sequence)
 ./examples/using_dune/wrapped_lib/style/style.ml:5: let x = ... in x (=> useless binding)
-
+./examples/using_dune/wrapped_lib/style/style.ml:11: let x = ... in x (=> useless binding): Not detected
+./examples/using_dune/wrapped_lib/style/style.ml:18: let x = ... in x (=> useless binding): Not detected
 ./examples/using_make/dir/fn_arg.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:9: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:11: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -732,7 +734,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 603
+Total: 607
 Success: 603
-Failed: 0
-Ratio: 100.%
+Failed: 4
+Ratio: 99.3410214168%
