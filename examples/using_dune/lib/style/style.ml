@@ -20,3 +20,27 @@ let _ =
      let ((_ : int) as constrained_useless_binding) = ...
      OCaml <= 5.4 *)
   constrained_useless_binding
+
+(* more opt arg in arg *)
+
+let _ =
+  let multiline_opt_arg_in_arg a b (* unused params *)
+      (f : ?opt:'a -> unit -> unit) =
+    f ()
+  in
+  let opt_arg_in_opt_arg_sig ?(f: (?opt:'a -> unit -> unit) option) () =
+    match f with
+    | Some f -> f ()
+    | None -> ()
+  in
+  let opt_arg_in_opt_arg_val ?(f=fun ?opt () -> ()) () = f () in
+  let multiline_implicit_opt_arg_in_arg a b
+      f =
+    multiline_opt_arg_in_arg a b f
+  in
+  let implicit_opt_arg_in_opt_arg ?f () =
+    match f with
+    | Some f -> multiline_opt_arg_in_arg () () f
+    | None -> ()
+  in
+  ()
