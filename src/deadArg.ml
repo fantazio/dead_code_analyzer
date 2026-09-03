@@ -180,10 +180,11 @@ let rec bind loc expr =
   match expr.exp_desc with
   #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
   | Texp_function {arg_label; cases; _} ->
-      bind_function loc expr arg_label cases
+      let expr_loc = expr.exp_loc.Location.loc_start in
+      bind_function loc expr_loc arg_label cases
   #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
   | Texp_function (params, body) ->
-      bind_function loc expr params body
+      bind_function loc params body
   #endif
   | exp_desc
     when Config.must_report_opt_args state.config
@@ -200,7 +201,7 @@ let rec bind loc expr =
       VdNode.merge_locs loc loc2
   | _ -> ()
 
-and bind_function loc expr =
+and bind_function loc =
   let state = State.get_current () in
   let register_optional_param = function
     | Asttypes.Optional s
@@ -209,31 +210,42 @@ and bind_function loc expr =
         VdNode.update loc (s :: opts, next)
     | _ -> ()
   in
+  let arg_type arg_label pat_type =
+    match arg_label with
+    | Asttypes.Optional _ ->
+        (* The type of optional arguments is wrapped in option *)
+        begin match get_deep_desc pat_type with
+        | Tconstr (_, [typ], _) -> typ
+        | _ -> pat_type
+        end
+    | _ -> pat_type
+  in
   #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
-  fun arg_label -> function
+  fun expr_loc arg_label -> function
     | {c_lhs = {pat_type; _}; c_rhs; _}::[] ->
-        DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
+        let arg_type = arg_type arg_label pat_type in
+        DeadType.check_style arg_type expr_loc;
         register_optional_param arg_label;
         bind loc c_rhs
     | _ -> ()
   #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
   let process_params params =
-    let check_param_style = function
+    let check_param_style arg_loc arg_label = function
       | Tparam_pat {pat_type; _}
       | Tparam_optional_default ({pat_type; _}, _) ->
-          DeadType.check_style pat_type expr.exp_loc.Location.loc_start
+          let arg_type = arg_type arg_label pat_type in
+          DeadType.check_style arg_type arg_loc.Location.loc_start
     in
     List.iter
-      (fun {fp_kind; fp_arg_label; _} ->
-        check_param_style fp_kind;
+      (fun {fp_kind; fp_arg_label; fp_loc; _} ->
+        check_param_style fp_loc fp_arg_label fp_kind;
         register_optional_param fp_arg_label
       )
       params
   in
   let process_body = function
-    | Tfunction_body exp -> bind loc exp
-    | Tfunction_cases {cases = [{c_lhs = {pat_type; _}; c_rhs = exp; _}]; _} ->
-        DeadType.check_style pat_type expr.exp_loc.Location.loc_start;
+    | Tfunction_body exp
+    | Tfunction_cases {cases = [{c_rhs = exp; _}]; _} ->
         bind loc exp
     | _ -> ()
   in
