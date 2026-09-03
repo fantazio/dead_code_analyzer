@@ -375,6 +375,8 @@ Nothing else to report in this section
 ./examples/using_dune/unwrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:8: ?duplicate
 ./examples/using_dune/unwrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:17: ?type_used
 
+./examples/using_dune/unwrapped_lib/style/style.ml:38: ?opt: Should not be detected
+./examples/using_dune/unwrapped_lib/style/style.ml:43: ?opt: Should not be detected
 ./examples/using_dune/wrapped_lib/opt_args/mixed_args.ml:1: ?always
 ./examples/using_dune/wrapped_lib/opt_args/mixed_args.ml:8: ?always
 ./examples/using_dune/wrapped_lib/opt_args/mixed_args.ml:15: ?always
@@ -415,6 +417,8 @@ Nothing else to report in this section
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:8: ?duplicate
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:17: ?type_used
 
+./examples/using_dune/wrapped_lib/style/style.ml:38: ?opt: Should not be detected
+./examples/using_dune/wrapped_lib/style/style.ml:43: ?opt: Should not be detected
 ./examples/using_make/baz.ml:1: ?d
 ./examples/using_make/baz.ml:5: ?d
 ./examples/using_make/cond_sel.ml:1: ?a
@@ -532,6 +536,9 @@ Nothing else to report in this section
 ./examples/using_dune/unwrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:7: ?duplicate
 
 ./examples/using_dune/unwrapped_lib/style/style.ml:3: ?opt
+./examples/using_dune/unwrapped_lib/style/style.ml:28: ?opt
+./examples/using_dune/unwrapped_lib/style/style.ml:33: ?opt
+./examples/using_dune/unwrapped_lib/style/style.ml:36: ?opt
 
 ./examples/using_dune/wrapped_lib/opt_args/mixed_args.ml:1: ?never
 ./examples/using_dune/wrapped_lib/opt_args/mixed_args.ml:8: ?never
@@ -572,6 +579,9 @@ Nothing else to report in this section
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.mli:7: ?duplicate
 
 ./examples/using_dune/wrapped_lib/style/style.ml:3: ?opt
+./examples/using_dune/wrapped_lib/style/style.ml:28: ?opt
+./examples/using_dune/wrapped_lib/style/style.ml:33: ?opt
+./examples/using_dune/wrapped_lib/style/style.ml:36: ?opt
 
 ./examples/using_make/dir/alias_opt.ml:2: ?b
 ./examples/using_make/dir/alias_opt.ml:11: ?a
@@ -660,7 +670,13 @@ Nothing else to report in this section
 ./examples/using_dune/unwrapped_lib/style/style.ml:5: let x = ... in x (=> useless binding)
 ./examples/using_dune/unwrapped_lib/style/style.ml:11: let x = ... in x (=> useless binding)
 ./examples/using_dune/unwrapped_lib/style/style.ml:18: let x = ... in x (=> useless binding)
-
+./examples/using_dune/unwrapped_lib/style/style.ml:27: val f: ... -> (... -> ?_:_ -> ...) -> ...: Should not be detected
+./examples/using_dune/unwrapped_lib/style/style.ml:28: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/unwrapped_lib/style/style.ml:31: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/unwrapped_lib/style/style.ml:36: val f: ... -> (... -> ?_:_ -> ...) -> ...
+./examples/using_dune/unwrapped_lib/style/style.ml:37: val f: ... -> (... -> ?_:_ -> ...) -> ...: Should not be detected
+./examples/using_dune/unwrapped_lib/style/style.ml:38: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/unwrapped_lib/style/style.ml:41: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:20: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:22: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:25: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -673,7 +689,13 @@ Nothing else to report in this section
 ./examples/using_dune/wrapped_lib/style/style.ml:5: let x = ... in x (=> useless binding)
 ./examples/using_dune/wrapped_lib/style/style.ml:11: let x = ... in x (=> useless binding)
 ./examples/using_dune/wrapped_lib/style/style.ml:18: let x = ... in x (=> useless binding)
-
+./examples/using_dune/wrapped_lib/style/style.ml:27: val f: ... -> (... -> ?_:_ -> ...) -> ...: Should not be detected
+./examples/using_dune/wrapped_lib/style/style.ml:28: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/wrapped_lib/style/style.ml:31: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/wrapped_lib/style/style.ml:36: val f: ... -> (... -> ?_:_ -> ...) -> ...
+./examples/using_dune/wrapped_lib/style/style.ml:37: val f: ... -> (... -> ?_:_ -> ...) -> ...: Should not be detected
+./examples/using_dune/wrapped_lib/style/style.ml:38: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
+./examples/using_dune/wrapped_lib/style/style.ml:41: val f: ... -> (... -> ?_:_ -> ...) -> ...: Not detected
 ./examples/using_make/dir/fn_arg.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:9: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:11: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -688,7 +710,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 563
-Success: 563
-Failed: 0
-Ratio: 100.%
+Total: 587
+Success: 571
+Failed: 16
+Ratio: 97.2742759796%
