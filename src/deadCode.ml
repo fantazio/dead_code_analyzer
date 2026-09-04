@@ -144,10 +144,20 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
       #endif
         when p.pat_loc = Location.none -> ()
       #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
-      | Tpat_var (_, {txt; _}) ->
+      | Tpat_var (_, {txt; _})
       #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
-      | Tpat_var (_, {txt; _}, _) ->
+      | Tpat_var (_, {txt; _}, _)
       #endif
+        (* x *)
+      #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, _, {txt; _})
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, _, {txt; _}, _)
+      #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, _, {txt; _}, _, _)
+      #endif
+        (* (x: t) *)
+        ->
           if check_underscore txt then u txt
       | Tpat_any -> if state.config.underscore then u "_"
       | Tpat_value tpat_arg ->
@@ -232,6 +242,15 @@ let expr super self e =
       #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
       | Tpat_var (id, _, _)
       #endif
+        (* x *)
+      #if OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, id, _)
+      #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 4, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, id, _, _)
+      #elif OCAML_VERSION >= (5, 4, 0) && OCAML_VERSION < (5, 6, 0)
+      | Tpat_alias ({pat_desc=Tpat_any; _}, id, _, _, _)
+      #endif
+        (* (x: t) *)
         when not (check_underscore (Ident.name id)) ->
           ()
       | _ ->

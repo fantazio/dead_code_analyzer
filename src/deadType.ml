@@ -27,7 +27,7 @@ let equivalences = ref []   (* t1 = t2 *)
 
                 (********   HELPERS   ********)
 
-let is_unit t = match get_desc t with
+let is_unit t = match get_deep_desc t with
   | Tconstr (p, [], _) -> Path.same p Predef.path_unit
   | _ -> false
 
