@@ -43,4 +43,8 @@ let _ =
     | Some f -> multiline_opt_arg_in_arg () () f
     | None -> ()
   in
+  let multiline_implicit_opt_arg_in_arg a b ?(opt = None)
+      f =
+    multiline_opt_arg_in_arg a b f
+  in
   ()
