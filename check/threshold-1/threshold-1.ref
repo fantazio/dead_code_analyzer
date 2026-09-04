@@ -1207,16 +1207,11 @@ Nothing else to report in this section
 ./examples/using_dune/unwrapped_lib/style/style.ml:41: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/unwrapped_lib/style/style.ml:47: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/unwrapped_lib/style/style.ml:55: let () = ... in ... (=> use sequence)
-./examples/using_dune/unwrapped_lib/style/style.ml:55: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/unwrapped_lib/style/style.ml:55: unit pattern constrained_unit_binding: Not detected
+./examples/using_dune/unwrapped_lib/style/style.ml:55: unit pattern constrained_unit_binding
 ./examples/using_dune/unwrapped_lib/style/style.ml:59: let () = ... in ... (=> use sequence)
-./examples/using_dune/unwrapped_lib/style/style.ml:59: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/unwrapped_lib/style/style.ml:59: unit pattern constrained_unit_binding: Not detected
-./examples/using_dune/unwrapped_lib/style/style.ml:63: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/unwrapped_lib/style/style.ml:63: unit pattern param: Not detected
-./examples/using_dune/unwrapped_lib/style/style.ml:65: let () = ... in ... (=> use sequence): Should not be detected
-./examples/using_dune/unwrapped_lib/style/style.ml:65: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/unwrapped_lib/style/style.ml:66: unit pattern !!pattern!!: Should not be detected
+./examples/using_dune/unwrapped_lib/style/style.ml:59: unit pattern constrained_unit_binding
+./examples/using_dune/unwrapped_lib/style/style.ml:63: unit pattern param
+
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:20: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:22: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/opt_args/opt_args_in_higher_order_fun.ml:25: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -1236,16 +1231,11 @@ Nothing else to report in this section
 ./examples/using_dune/wrapped_lib/style/style.ml:41: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/style/style.ml:47: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_dune/wrapped_lib/style/style.ml:55: let () = ... in ... (=> use sequence)
-./examples/using_dune/wrapped_lib/style/style.ml:55: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/wrapped_lib/style/style.ml:55: unit pattern constrained_unit_binding: Not detected
+./examples/using_dune/wrapped_lib/style/style.ml:55: unit pattern constrained_unit_binding
 ./examples/using_dune/wrapped_lib/style/style.ml:59: let () = ... in ... (=> use sequence)
-./examples/using_dune/wrapped_lib/style/style.ml:59: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/wrapped_lib/style/style.ml:59: unit pattern constrained_unit_binding: Not detected
-./examples/using_dune/wrapped_lib/style/style.ml:63: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/wrapped_lib/style/style.ml:63: unit pattern param: Not detected
-./examples/using_dune/wrapped_lib/style/style.ml:65: let () = ... in ... (=> use sequence): Should not be detected
-./examples/using_dune/wrapped_lib/style/style.ml:65: unit pattern !!pattern!!: Should not be detected
-./examples/using_dune/wrapped_lib/style/style.ml:66: unit pattern !!pattern!!: Should not be detected
+./examples/using_dune/wrapped_lib/style/style.ml:59: unit pattern constrained_unit_binding
+./examples/using_dune/wrapped_lib/style/style.ml:63: unit pattern param
+
 ./examples/using_make/dir/fn_arg.ml:3: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:9: val f: ... -> (... -> ?_:_ -> ...) -> ...
 ./examples/using_make/dir/fn_arg.ml:11: val f: ... -> (... -> ?_:_ -> ...) -> ...
@@ -1260,7 +1250,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 1051
-Success: 1027
-Failed: 24
-Ratio: 97.7164605138%
+Total: 1039
+Success: 1033
+Failed: 6
+Ratio: 99.4225216554%
