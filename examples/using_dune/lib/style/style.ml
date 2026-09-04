@@ -48,3 +48,20 @@ let _ =
     multiline_opt_arg_in_arg a b f
   in
   ()
+
+(* more unit bindings *)
+
+let _ =
+  let constrained_unit_binding : unit = () in
+  (* This is translated as
+     let ((_ : int) as constrained_unit_binding) = ...
+     from OCaml 5.1 to 5.4 *)
+  let (constrained_unit_binding : unit) = () in
+  (* This is translated as
+     let ((_ : int) as constrained_unit_binding) = ...
+     OCaml <= 5.4 *)
+  let f (param : unit) = () in
+  let _underscore_unit_binding = () in
+  let (_underscore_constrained_unit_binding : unit) = () in
+  let f (_underscore_param : unit) = () in
+  ()
