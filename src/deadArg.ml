@@ -182,6 +182,27 @@ let rec bind loc expr =
   | Texp_function {arg_label; cases; _} ->
       let expr_loc = expr.exp_loc.Location.loc_start in
       bind_function loc expr_loc arg_label cases
+  | Texp_let (_, [_], in_expr) ->
+      (* optional arguments with default value
+         `fun ?(opt = default) x -> ...`
+         are translated into
+         ```
+         fun ?opt ->
+           (let opt = match opt with
+             Some sth -> sth | None -> default
+           in
+           fun x -> ...
+           )[@@#default]
+         ```
+         Checking if we have a `let ... in` with a "#default" attribute
+         is enough to identify those cases.
+        *)
+      let is_default expr =
+        List.exists
+          (fun Parsetree.{attr_name={txt; _}; _} -> String.equal txt "#default")
+          expr.exp_attributes
+      in
+      if is_default expr then bind loc in_expr
   #elif OCAML_VERSION >= (5, 2, 0) && OCAML_VERSION < (5, 6, 0)
   | Texp_function (params, body) ->
       bind_function loc params body
