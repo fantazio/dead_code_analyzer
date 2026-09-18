@@ -482,8 +482,6 @@ Nothing else to report in this section
 
 ./examples/using_make/obj/class.mli:1: c#h
 ./examples/using_make/obj/class_type.mli:9: c#h
-./examples/using_make/obj/coerce.mli:6: p#f
-./examples/using_make/obj/coerce.mli:6: p#h
 ./examples/using_make/obj/constraint.ml:1: p#g
 ./examples/using_make/obj/fooCl.mli:1: p1#g
 ./examples/using_make/obj/fooCl.mli:1: p1#h
@@ -576,9 +574,6 @@ Nothing else to report in this section
 
 ./examples/using_make/obj/class.mli:1: c#f
 ./examples/using_make/obj/class.mli:1: c#g
-./examples/using_make/obj/class_type.mli:7: p#f
-./examples/using_make/obj/class_type.mli:7: p#h
-./examples/using_make/obj/coerce.mli:8: c#h
 ./examples/using_make/obj/constraint.ml:1: p#f
 ./examples/using_make/obj/depend.ml:8: M.c#f
 ./examples/using_make/obj/fooCl.mli:1: p1#f
