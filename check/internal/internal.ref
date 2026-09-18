@@ -188,8 +188,6 @@ Nothing else to report in this section
 
 ./examples/using_make/obj/class.mli:1: c#h
 ./examples/using_make/obj/class_type.mli:9: c#h
-./examples/using_make/obj/coerce.mli:6: p#f
-./examples/using_make/obj/coerce.mli:6: p#h
 ./examples/using_make/obj/constraint.ml:1: p#g
 ./examples/using_make/obj/fooCl.mli:1: p1#g
 ./examples/using_make/obj/fooCl.mli:1: p1#h
@@ -722,7 +720,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 597
-Success: 591
+Total: 595
+Success: 589
 Failed: 6
-Ratio: 98.9949748744%
+Ratio: 98.9915966387%

@@ -126,11 +126,6 @@ let add_equal loc1 loc2 =
   end
 
 
-let rec sign = function
-  | Cty_signature sg -> sg
-  | Cty_arrow (_, _, t)
-  | Cty_constr (_, _, t) -> sign t
-
 
 let rec treat_fields action typ = match get_deep_desc typ with
   | Tobject (t, _)
@@ -204,9 +199,15 @@ let collect_export path u stock ~obj ~cltyp loc =
       export ~sep:"#" path u stock id loc;
   in
 
+
+  let rec sig_self = function
+    | Cty_signature sg -> Some (sg.csig_self)
+    | Cty_arrow (_, _, t) -> sig_self t
+    | Cty_constr _ -> None (* do not track class types' methods *)
+  in
   let typ = match cltyp with
     | None -> obj
-    | Some cltyp -> Some (sign cltyp).csig_self
+    | Some cltyp -> sig_self cltyp
   in
   match typ with
     | Some typ ->
