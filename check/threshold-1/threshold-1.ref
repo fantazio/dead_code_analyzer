@@ -186,8 +186,6 @@
 
 ./examples/docs/methods/code_constructs/class/class_bin.ml:4: push_n_times
 
-./examples/docs/methods/code_constructs/class_type/class_type_bin.ml:4: push_n_times
-
 ./examples/docs/methods/code_constructs/coercion/coercion_lib.mli:2: obj
 
 ./examples/docs/methods/code_constructs/constructor/constructor_bin.ml:4: push_n_times
@@ -1245,7 +1243,7 @@ Nothing else to report in this section
 --------------------------------------------------------------------------------
 
 
-Total: 1034
-Success: 1028
+Total: 1033
+Success: 1027
 Failed: 6
-Ratio: 99.419729207%
+Ratio: 99.4191674734%

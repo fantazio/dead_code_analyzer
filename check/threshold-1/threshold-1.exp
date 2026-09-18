@@ -186,8 +186,6 @@
 
 ./examples/docs/methods/code_constructs/class/class_bin.ml:4: push_n_times
 
-./examples/docs/methods/code_constructs/class_type/class_type_bin.ml:4: push_n_times
-
 ./examples/docs/methods/code_constructs/coercion/coercion_lib.mli:2: obj
 
 ./examples/docs/methods/code_constructs/constructor/constructor_bin.ml:4: push_n_times

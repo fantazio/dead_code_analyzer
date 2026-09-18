@@ -1,5 +1,5 @@
 (* class_type_lib.mli *)
-class type int_stack =
+class type int_stack_t =
   object
     method push : int -> unit
     method pop : unit
@@ -7,4 +7,6 @@ class type int_stack =
     method reset : unit
   end
 
-val int_stack : int_stack
+val int_stack_o : int_stack_t
+
+class int_stack_c : int_stack_t
