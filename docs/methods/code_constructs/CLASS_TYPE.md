@@ -32,7 +32,7 @@ make -C class_type
 Code:
 ```OCaml
 (* class_type_lib.mli *)
-class type int_stack =
+class type int_stack_t =
   object
     method push : int -> unit
     method pop : unit
@@ -40,11 +40,13 @@ class type int_stack =
     method reset : unit
   end
 
-val int_stack : int_stack
+val int_stack_o : int_stack_t
+
+class int_stack_c : int_stack_t
 ```
 ```OCaml
 (* class_type_lib.ml *)
-class type int_stack =
+class type int_stack_t =
   object
     method push : int -> unit
     method pop : unit
@@ -52,7 +54,22 @@ class type int_stack =
     method reset : unit
   end
 
-let int_stack =
+let int_stack_o =
+  object
+    val mutable l : int list = []
+    method push x = l <- x::l
+    method pop =
+      match l with
+      | [] -> ()
+      | _::tl -> l <- tl
+    method peek =
+      match l with
+      | [] -> None
+      | hd::_ -> Some hd
+    method reset = l <- []
+  end
+
+class int_stack_c =
   object
     val mutable l : int list = []
     method push x = l <- x::l
@@ -76,9 +93,20 @@ let push_n_times n stack =
     stack#push i;
   done
 
+(* test immediate object *)
 let () =
   let open Class_type_lib in
   let n = 42 in
+  push_n_times n int_stack_o;
+  while int_stack_o#peek <> None do
+    int_stack_o#pop;
+  done
+
+(* test class *)
+let () =
+  let open Class_type_lib in
+  let n = 42 in
+  let int_stack = new int_stack_c in
   push_n_times n int_stack;
   while int_stack#peek <> None do
     int_stack#pop;
@@ -86,7 +114,7 @@ let () =
 ```
 
 By looking at the code, we could make the same observation as in the
-[Class](./CLASS.md) example.
+[Class](./CLASS.md) and [Immediate Object](./IMMEDIATE_OBJECT.md) examples.
 
 However, because of the current limitation on class types, nothing is expected
 to reported.

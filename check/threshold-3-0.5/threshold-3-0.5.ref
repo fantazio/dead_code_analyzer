@@ -186,8 +186,6 @@
 
 ./examples/docs/methods/code_constructs/class/class_bin.ml:4: push_n_times
 
-./examples/docs/methods/code_constructs/class_type/class_type_bin.ml:4: push_n_times
-
 ./examples/docs/methods/code_constructs/coercion/coercion_lib.mli:2: obj
 
 ./examples/docs/methods/code_constructs/constructor/constructor_bin.ml:4: push_n_times
@@ -426,6 +424,8 @@
 
 ./examples/docs/methods/code_constructs/alias/alias_lib.mli:2: original
 
+./examples/docs/methods/code_constructs/class_type/class_type_bin.ml:4: push_n_times
+
 ./examples/docs/optional_arguments/code_constructs/intext_app/intext_app_lib.mli:2: max
 ./examples/docs/optional_arguments/code_constructs/intext_app/intext_app_lib.mli:3: min
 
@@ -536,7 +536,7 @@
 
 .>->  ALMOST UNUSED EXPORTED VALUES: Called 3 time(s):
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-./examples/docs/methods/code_constructs/class_type/class_type_lib.mli:10: int_stack
+./examples/docs/methods/code_constructs/class_type/class_type_lib.mli:10: int_stack_o
 
 ./examples/docs/methods/code_constructs/factory_fun/factory_fun_lib.mli:2: get_stack
 
