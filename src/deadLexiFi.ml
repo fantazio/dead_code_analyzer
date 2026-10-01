@@ -45,18 +45,22 @@ module Extension = struct
   let field_link = Hashtbl.create 256
   let dyn_used = Hashtbl.create 256
 
+  [%%if ocaml_version >= (5, 3, 0)]
+  let get_const_string = function
+    | Pexp_constant {pconst_desc= (Pconst_string (s, _, _)); _} -> Some s
+    | _ -> None
+  [%%else]
+  let get_const_string = function
+    | Pexp_constant (Pconst_string (s, _, _)) -> Some s
+    | _ -> None
+  [%%endif]
+
   let sig_value (value : Types.value_description) =
     let add strct = match strct.pstr_desc with
       | Pstr_eval ({pexp_desc; _}, _) ->
-          begin match pexp_desc with
-            #if OCAML_VERSION >= (5, 3, 0)
-            | Pexp_constant {pconst_desc= (Pconst_string (s, _, _)); _} ->
-            #else
-            | Pexp_constant (Pconst_string (s, _, _)) ->
-            #endif
-                hashtbl_add_unique_to_list str s value.val_loc.loc_start
-            | _ -> ()
-          end
+        get_const_string pexp_desc
+        |> Option.iter (fun s ->
+            hashtbl_add_unique_to_list str s value.val_loc.loc_start)
       | _ -> ()
     in
     let add = function

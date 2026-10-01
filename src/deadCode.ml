@@ -152,12 +152,8 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, lab, _) ->
-          #if OCAML_VERSION >= (5, 4, 0)
           (* The type of lab moved in OCaml 5.4 *)
-          let lab : Data_types.label_description = lab in
-          #else
-          let lab : Types.label_description = lab in
-          #endif
+          let lab = Utils.Compat.get_lab_desc lab in
           let lab_loc = lab.lbl_loc.Location.loc_start in
           if exported ~is_type:true sections.types lab_loc then
             DeadType.collect_references lab_loc pat_loc

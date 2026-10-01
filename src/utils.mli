@@ -42,12 +42,16 @@ val typedtree_signature_of_modtype :
 module StringSet : Set.S with type elt = String.t
 
 module Envaux : sig
-  type paths =
-    #if OCAML_VERSION >= (5, 2, 0)
-    Load_path.paths
-    #else
-    string list
-    #endif
+
+  [%%if ocaml_version >= (5, 2, 0)]
+
+  type paths = Load_path.paths
+
+  [%%else]
+
+  type paths = string list
+
+  [%%endif]
 
   val set_loadpaths : paths -> unit
   (** Reset the load_path to the [paths]. Also calls Envaux.reset_cache.
@@ -62,24 +66,44 @@ module Compat : sig
 
   open Typedtree
 
-  #if OCAML_VERSION >= (5, 4, 0)
+  [%%if ocaml_version >= (5, 4, 0)]
+
   val unlabel_tuple : ('a * 'b) list -> 'b list
-  #else
-  val unlabel_tuple : 'a list -> 'a list
-  #endif
     (** Tuple's field representation changed in OCaml 5.4, with the
         introduction of labelled tuples. This converts a tuple's fields back
         into the pre-5.4 representation. *)
 
-val options_of_args :
-  #if OCAML_VERSION >= (5, 4, 0)
-  (Asttypes.arg_label * (expression, unit) arg_or_omitted) list
-  #else
-  (Asttypes.arg_label * expression option) list
-  #endif
-  -> (Asttypes.arg_label * expression option) list
+  [%%else]
+
+  val unlabel_tuple : 'a list -> 'a list
+
+  [%%endif]
+
+  [%%if ocaml_version >= (5, 4, 0)]
+
+  val options_of_args :
+    (Asttypes.arg_label * (expression, unit) arg_or_omitted) list
+    -> (Asttypes.arg_label * expression option) list
     (** Apply's arguments representation changed in OCaml 5.4, from
         expression option to arg_or_omitted. This does the reverse conversion *)
+
+  [%%else]
+
+  val options_of_args :
+    (Asttypes.arg_label * expression option) list
+    -> (Asttypes.arg_label * expression option) list
+
+  [%%endif]
+
+  [%%if ocaml_version >= (5, 4, 0)]
+
+  (* The type of lab moved in OCaml 5.4 *)
+  val get_lab_desc : Data_types.label_description -> Data_types.label_description
+  [%%else]
+
+  val get_lab_desc : Types.label_description -> Types.label_description
+
+  [%%endif]
 
   type _ invalid_arg =
     | Unexpected_pattern : string * 'k pattern_desc -> 'k pattern_desc invalid_arg
@@ -155,5 +179,9 @@ val options_of_args :
         If there are multiple cases, then the returned list contains all the
         alternative expressions.
     *)
+
+  type function_cases = value case list
+
+  val get_function_cases : function_cases exp_getter
 
 end

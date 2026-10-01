@@ -130,15 +130,14 @@ and register_higher_order_uses builddir e =
             Some val_desc.val_loc.loc_start
         | _ -> None
       in
+      let$ cases =
+        Utils.Compat.get_function_cases expr.exp_desc
+        |> Result.to_option
+      in
       let$ (c_lhs, c_rhs) =
-        match expr.exp_desc with
-        #if OCAML_VERSION >= (5, 2, 0)
-        | Texp_function (_, Tfunction_cases {cases = [case]; _}) ->
-        #else
-        | Texp_function {cases = [case]; _} ->
-        #endif
-            Some (case.c_lhs, case.c_rhs)
-        | _ -> None
+        match cases with
+        | [] -> None
+        | case::_ -> Some (case.c_lhs, case.c_rhs)
       in
       match (c_lhs.pat_desc, c_rhs.exp_desc) with
       | (Tpat_var _, Texp_apply (_, args)) ->
@@ -159,60 +158,30 @@ let register_uses val_loc args =
   in
   register_uses builddir val_loc args
 
-let rec bind loc expr =
+let bind_fallback loc expr =
   let state = State.get_current () in
-  match expr.exp_desc with
-  #if OCAML_VERSION >= (5, 2, 0)
-  | Texp_function (params, body) -> bind_function loc params body
-  #else
-  | Texp_function {arg_label; cases; _} ->
-      let expr_loc = expr.exp_loc.Location.loc_start in
-      bind_function loc expr_loc arg_label cases
-  | Texp_let (_, [_], in_expr) ->
-      (* optional arguments with default value
-         `fun ?(opt = default) x -> ...`
-         are translated into
-         ```
-         fun ?opt ->
-           (let opt = match opt with
-             Some sth -> sth | None -> default
-           in
-           fun x -> ...
-           )[@@#default]
-         ```
-         Checking if we have a `let ... in` with a "#default" attribute
-         is enough to identify those cases.
-        *)
-      let is_default expr =
-        List.exists
-          (fun Parsetree.{attr_name={txt; _}; _} -> String.equal txt "#default")
-          expr.exp_attributes
-      in
-      if is_default expr then bind loc in_expr
-  #endif
-  | exp_desc
-    when Config.must_report_opt_args state.config
-         && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
-      let ( let$ ) x f = Option.iter f x in
-      let$ loc2 =
-        match exp_desc with
-        | Texp_apply ({exp_desc = Texp_ident (_, _, {val_loc = loc; _}); _}, _)
-        | Texp_apply ({exp_desc = Texp_field (_, _, {lbl_loc = loc; _}); _}, _)
-        | Texp_ident (_, _, {val_loc = loc; _}) ->
-            Some loc.loc_start
-        | _ -> None
-      in
-      VdNode.merge_locs loc loc2
-  | _ -> ()
+  if Config.must_report_opt_args state.config
+     && DeadType.nb_args ~keep:`Opt expr.exp_type > 0
+  then
+    let ( let$ ) x f = Option.iter f x in
+    let$ loc2 =
+      match expr.exp_desc with
+      | Texp_apply ({exp_desc = Texp_ident (_, _, {val_loc = loc; _}); _}, _)
+      | Texp_apply ({exp_desc = Texp_field (_, _, {lbl_loc = loc; _}); _}, _)
+      | Texp_ident (_, _, {val_loc = loc; _}) ->
+          Some loc.loc_start
+      | _ -> None
+    in
+    VdNode.merge_locs loc loc2
 
-and register_optional_param state loc = function
+let register_optional_param state loc = function
   | Asttypes.Optional s
     when Config.must_report_opt_args state.State.config ->
       let (opts, next) = VdNode.get loc in
       VdNode.update loc (s :: opts, next)
   | _ -> ()
 
-and arg_type arg_label pat_type =
+let arg_type arg_label pat_type =
   match arg_label with
   | Asttypes.Optional _ ->
       (* The type of optional arguments is wrapped in option *)
@@ -222,7 +191,13 @@ and arg_type arg_label pat_type =
       end
   | _ -> pat_type
 
-#if OCAML_VERSION >= (5, 2, 0)
+[%%if ocaml_version >= (5, 2, 0)]
+
+let rec bind loc expr =
+  match expr.exp_desc with
+  | Texp_function (params, body) -> bind_function loc params body
+  | _ -> bind_fallback loc expr
+
 and bind_function loc params body =
   let state = State.get_current () in
   let process_params params =
@@ -247,7 +222,37 @@ and bind_function loc params body =
   in
   process_params params;
   process_body body
-#elif OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
+
+[%%else]
+
+let rec bind loc expr =
+  match expr.exp_desc with
+  | Texp_function {arg_label; cases; _} ->
+      let expr_loc = expr.exp_loc.Location.loc_start in
+      bind_function loc expr_loc arg_label cases
+  | Texp_let (_, [_], in_expr) ->
+      (* optional arguments with default value
+         `fun ?(opt = default) x -> ...`
+         are translated into
+         ```
+         fun ?opt ->
+           (let opt = match opt with
+             Some sth -> sth | None -> default
+           in
+           fun x -> ...
+           )[@@#default]
+         ```
+         Checking if we have a `let ... in` with a "#default" attribute
+         is enough to identify those cases.
+        *)
+      let is_default expr =
+        List.exists
+          (fun Parsetree.{attr_name={txt; _}; _} -> String.equal txt "#default")
+          expr.exp_attributes
+      in
+      if is_default expr then bind loc in_expr
+  | _ -> bind_fallback loc expr
+
 and bind_function loc expr_loc arg_label cases =
   let state = State.get_current () in
     match cases with
@@ -257,9 +262,8 @@ and bind_function loc expr_loc arg_label cases =
         register_optional_param state loc arg_label;
         bind loc c_rhs
     | _ -> ()
-#else
-#error "unsupported version"
-#endif
+
+[%%endif]
 
                 (********   WRAPPING  ********)
 

@@ -130,6 +130,26 @@ let collect_export_from_signature ~path ~comp_unit signature =
   in
   collect_signature path signature
 
+[%%if ocaml_version >= (5, 4, 0)]
+let fold_tpat_array f = function
+  | Typedtree.Tpat_array (_, pats) -> f pats
+  | _ -> assert false
+[%%else]
+let fold_tpat_array f = function
+  | Typedtree.Tpat_array pats -> f pats
+  | _ -> assert false
+[%%endif]
+
+[%%if ocaml_version >= (5, 1, 0)]
+let fold_tmod_apply f = function
+  | Typedtree.Tmod_apply (m, _, _)
+  | Typedtree.Tmod_apply_unit m -> f m
+  | _ -> assert false
+[%%else]
+let fold_tmod_apply f = function
+  | Typedtree.Tmod_apply (m, _, _) -> f m
+  | _ -> assert false
+[%%endif]
 
 let collect_export_from_structure ~path ~comp_unit structure =
   let met = Hashtbl.create 64 in
@@ -179,13 +199,10 @@ let collect_export_from_structure ~path ~comp_unit structure =
     | Tpat_tuple pats ->
         let pats = Utils.Compat.unlabel_tuple pats in
         List.iter (collect_value ~path) pats
-    | Tpat_construct (_, _, pats, _)
-    #if OCAML_VERSION >= (5, 4, 0)
-    | Tpat_array (_, pats) ->
-    #else
-    | Tpat_array pats ->
-    #endif
+    | Tpat_construct (_, _, pats, _) ->
         List.iter (collect_value ~path) pats
+    | Tpat_array _ as tpat_array->
+      fold_tpat_array (List.iter (collect_value ~path)) tpat_array
     | Tpat_record (fields, _) ->
         List.iter (fun (_, _, pat) -> collect_value ~path pat) fields
     | (Tpat_var _ | Tpat_alias _) as pat_desc ->
@@ -214,16 +231,13 @@ let collect_export_from_structure ~path ~comp_unit structure =
         export_module ~path m.mod_type;
         collect_structure ~path structure
     | Tmod_functor (_, m)
-    | Tmod_apply (m, _, _)
-    #if OCAML_VERSION >= (5, 1, 0)
-    | Tmod_apply_unit m (* Constructor introduced in OCaml 5.1 *)
-    #endif
     | Tmod_constraint (m, _, Tmodtype_implicit, _) ->
         collect_module ~path m
     | Tmod_constraint (_, _, Tmodtype_explicit mt, _) ->
         export_module ~path mt.mty_type;
         Utils.typedtree_signature_of_modtype mt
         |> Option.iter (collect_export_from_signature ~path ~comp_unit)
+    | tmod_apply -> fold_tmod_apply (collect_module ~path) tmod_apply
 
   and collect_module_binding ~path = function
     | {mb_id = Some id; mb_expr; _} ->
@@ -304,12 +318,9 @@ let collect_from_include incl_decl =
         let signature = Utils.signature_of_modtype mod_type in
         (None, signature)
     | Tmod_functor (_, mod_expr)
-    | Tmod_apply (mod_expr, _, _)
-    #if OCAML_VERSION >= (5, 1, 0)
-    | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
-    #endif
     | Tmod_constraint (mod_expr, _, _, _) ->
         get_mod_path_and_signature mod_expr
+    | tmod_apply -> fold_tmod_apply get_mod_path_and_signature tmod_apply
   in
   (* incl_path is used to identify and store type equivalences *)
   let incl_path, signature =
@@ -414,14 +425,11 @@ let collect_eq_from_module_alias ~path module_binding =
               )
               mt
         | Tmod_constraint (mod_expr, _, _, _)
-        | Tmod_functor (_, mod_expr)
-        #if OCAML_VERSION >= (5, 1, 0)
-        | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
-        #endif
-        | Tmod_apply (mod_expr, _, _) ->
+        | Tmod_functor (_, mod_expr) ->
             collect_from_module_expr mod_expr
         | Tmod_structure _
         | Tmod_unpack (_, _) -> ()
+        | tmod_apply -> fold_tmod_apply collect_from_module_expr tmod_apply
       in
       collect_from_module_expr mb_expr
 

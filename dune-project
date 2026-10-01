@@ -23,6 +23,6 @@
  (license MIT)
  (depends
   (ocaml (and (>= 4.14) (< 5.6)))
-  cppo
+  ppx_optcomp
  )
 )

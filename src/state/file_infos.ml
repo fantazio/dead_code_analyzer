@@ -28,6 +28,16 @@ let empty = {
   sourcepath = None;
 }
 
+[%%if ocaml_version >= (5, 3, 0)]
+
+let get_cmti_uid_to_decl cmt_infos = cmt_infos.Cmt_format.cmt_uid_to_decl
+
+[%%else]
+
+let get_cmti_uid_to_decl _cmt_infos = Location_dependencies.NA
+
+[%%endif]
+
 (** [init_from_all_cm_infos ~cm_file cmt_infos] creates a [t] with:
     - information from [cmt_infos] : [builddir], [modname], [sourcepath];
     - [cm_file];
@@ -44,11 +54,7 @@ let init_from_all_cm_infos ~cm_file cmt_infos =
   let cm_infos =
     match cmt_infos.cmt_annots with
     | Interface sign ->
-        #if OCAML_VERSION >= (5, 3, 0)
-        let cmti_uid_to_decl = cmt_infos.cmt_uid_to_decl in
-        #else
-        let cmti_uid_to_decl = Location_dependencies.NA in
-        #endif
+        let cmti_uid_to_decl = get_cmti_uid_to_decl cmt_infos in
         Cmti {sign; cmti_uid_to_decl}
     | Implementation strc ->
         let location_dependencies = Location_dependencies.empty in
