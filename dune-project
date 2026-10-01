@@ -17,6 +17,10 @@
 (source
  (github LexiFi/dead_code_analyzer))
 
+(pin
+ (url "git+https://github.com/fantazio/vaast.git")
+ (package (name vaast)))
+
 (package
  (name dead_code_analyzer)
  (synopsis "Dead code analyzer for OCaml")
@@ -24,5 +28,6 @@
  (depends
   (ocaml (and (>= 4.14) (< 5.6)))
   cppo
+  vaast
  )
 )

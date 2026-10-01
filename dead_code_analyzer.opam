@@ -17,6 +17,7 @@ depends: [
   "dune" {>= "3.20"}
   "ocaml" {>= "4.14" & < "5.6"}
   "cppo"
+  "vaast"
   "odoc" {with-doc}
 ]
 build: [
@@ -35,3 +36,6 @@ build: [
 ]
 dev-repo: "git+https://github.com/LexiFi/dead_code_analyzer.git"
 x-maintenance-intent: ["(latest)"]
+pin-depends: [
+  ["vaast.dev" "git+https://github.com/fantazio/vaast.git"]
+]

@@ -32,54 +32,60 @@ let main_files = Hashtbl.create 256   (* names -> paths *)
                 (********   PROCESSING   ********)
 
 
-let rec treat_exp exp args =
-  match exp.exp_desc with
-  | Texp_apply (exp, in_args) ->
-      let in_args = Utils.Compat.options_of_args in_args in
-      treat_exp exp (in_args @ args)
+let register_arg_uses exp =
+  let rec loop exp args_acc =
+    match Vaast.Typedtree.of_expression_desc exp.exp_desc with
+    | Texp_apply {f; args} ->
+        let args = Utils.Compat.options_of_args args in
+        loop f (args @ args_acc)
 
-  | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; _}; _})
-  | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; _}; _}) ->
-      DeadArg.register_uses loc args
+    | Texp_ident {value_desc = {Types.val_loc = loc; _}; _}
+    | Texp_field {desc = {lbl_loc = loc; _}; _} ->
+        let loc = loc.Location.loc_start in
+        DeadArg.register_uses loc args_acc
 
-  | Texp_match _ as exp_desc ->
-      let (_, comp_l, val_l, _) = Utils.Compat.get_match_data_exn exp_desc in
-      let process_cases l =
-        List.iter (fun {c_rhs = exp; _} -> treat_exp exp args) l
-      in
-      process_cases comp_l;
-      process_cases val_l
+    | Texp_match {cases; effect_cases; _} ->
+        let effect_cases = Utils.Compat.flatten_effect_cases effect_cases in
+        let process_cases l =
+          List.iter (fun {c_rhs = exp; _} -> loop exp args_acc) l
+        in
+        process_cases cases;
+        process_cases effect_cases
 
-  | Texp_ifthenelse (_, exp_then, exp_else) ->
-      treat_exp exp_then args;
-      begin match exp_else with
-      | Some exp -> treat_exp exp args
-      | _ -> ()
-      end
+    | Texp_ifthenelse {then_; else_; _} ->
+        loop then_ args_acc;
+        begin match else_ with
+        | Some else_ -> loop else_ args_acc
+        | _ -> ()
+        end
 
-  | _ -> ()
+    | _ -> ()
+  in loop exp []
 
 
 let value_binding super self x =
+  let value_binding x =
+    match Vaast.Typedtree.of_pattern_desc x.vb_pat.pat_desc with
+    | Tpat_var {name = {loc; _}; _}
+    | Tpat_alias {name = {loc; _}; pat = {pat_desc=Tpat_any; _}; _}
+      when not loc.Location.loc_ghost ->
+        let pat_loc = loc.Location.loc_start in
+        begin match x.vb_expr.exp_desc with
+        | Texp_ident (_, _, {val_loc; _}) when not val_loc.Location.loc_ghost ->
+            let val_loc = val_loc.Location.loc_start in
+            VdNode.merge_locs pat_loc val_loc;
+            DeadObj.add_equal pat_loc val_loc
+        | _ ->
+            let exp = x.vb_expr in
+            DeadArg.bind pat_loc exp;
+            DeadObj.add_var pat_loc exp
+        end
+    | _ -> ()
+  in
   let at_eof_saved = !DeadArg.at_eof in
   DeadArg.at_eof := [];
   incr depth;
-  begin match Utils.Compat.get_var_data x.vb_pat.pat_desc with
-  | Ok (_, {loc=pat_loc; _}, _) when not pat_loc.Location.loc_ghost ->
-      let pat_loc = pat_loc.Location.loc_start in
-      begin match x.vb_expr.exp_desc with
-      | Texp_ident (_, _, {val_loc; _}) when not val_loc.Location.loc_ghost ->
-          let val_loc = val_loc.Location.loc_start in
-          VdNode.merge_locs pat_loc val_loc;
-          DeadObj.add_equal pat_loc val_loc
-      | _ ->
-          let exp = x.vb_expr in
-          DeadArg.bind pat_loc exp;
-          DeadObj.add_var pat_loc exp
-      end
-  | _ -> ()
-  end;
-
+  value_binding x;
   let r = super.Tast_mapper.value_binding self x in
   List.iter (fun f -> f()) !DeadArg.at_eof;
   DeadArg.at_eof := at_eof_saved;
@@ -115,12 +121,14 @@ let structure_item super self i =
   r
 
 
-let id_of_var pat_desc =
+let id_of_var : type k . k pattern_desc -> Ident.t option = fun pat_desc ->
   (* helper function to extract the var's id in  tpat_var and
      tpat_alias(tpat_any) patterns for all OCaml versions *)
-  Utils.Compat.get_var_data pat_desc
-  |> Result.to_option
-  |> Option.map (fun (id, _, _) -> id)
+  match Vaast.Typedtree.of_pattern_desc pat_desc with
+  | Tpat_var {id; _}
+  | Tpat_alias {id; pat = {pat_desc=Tpat_any; _}; _} ->
+      Some id
+  | _ -> None
 
 
 let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -> k general_pattern =
@@ -141,7 +149,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
         | _ -> u "!!pattern!!"
         end
       | var ->
-        match id_of_var var with
+          match id_of_var var with
           | Some id ->
               let txt = Ident.name id in
               if txt = "eta" && p.pat_loc = Location.none then ()
@@ -152,12 +160,7 @@ let pat: type k. Tast_mapper.mapper -> Tast_mapper.mapper -> k general_pattern -
   | Tpat_record (l, _) ->
       List.iter
         (fun (_, lab, _) ->
-          #if OCAML_VERSION >= (5, 4, 0)
-          (* The type of lab moved in OCaml 5.4 *)
-          let lab : Data_types.label_description = lab in
-          #else
-          let lab : Types.label_description = lab in
-          #endif
+          let lab : Vaast.OCaml.Data_types.label_description = lab in
           let lab_loc = lab.lbl_loc.Location.loc_start in
           if exported ~is_type:true sections.types lab_loc then
             DeadType.collect_references lab_loc pat_loc
@@ -178,32 +181,38 @@ let expr super self e =
   in
   extra e.exp_extra;
   let exp_loc = e.exp_loc.Location.loc_start in
-  begin match e.exp_desc with
+  begin match Vaast.Typedtree.of_expression_desc e.exp_desc with
 
-  | Texp_ident (path, _, _) when Path.name path = "Mlfi_types.internal_ttype_of" ->
-      !DeadLexiFi.ttype_of e
+  | Texp_ident {path; value_desc = {val_loc; _}; _} ->
+      if Path.name path = "Mlfi_types.internal_ttype_of" then
+        !DeadLexiFi.ttype_of e
+      else
+        let loc = val_loc.Location.loc_start in
+        let is_exported = exported sections.exported_values loc in
+        if not val_loc.loc_ghost && is_exported then
+          LocHash.add_set references loc exp_loc
 
-  | Texp_ident (_, _, {Types.val_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
-    when exported sections.exported_values loc ->
-      LocHash.add_set references loc exp_loc
+  | Texp_field {desc = {lbl_loc = loc; _}; _}
+  | Texp_construct {ctor_desc = {cstr_loc = loc; _}; _} ->
+      let loc_start = loc.Location.loc_start in
+      let is_exported = exported ~is_type:true sections.types loc_start in
+      if not loc.Location.loc_ghost && is_exported then
+        DeadType.collect_references loc_start exp_loc
 
-  | Texp_field (_, _, {lbl_loc = {Location.loc_start = loc; loc_ghost = false; _}; _})
-  | Texp_construct (_, {cstr_loc = {Location.loc_start = loc; loc_ghost = false; _}; _}, _)
-    when exported ~is_type:true sections.types loc ->
-      DeadType.collect_references loc exp_loc
-
-  | Texp_send (e2, Tmeth_name meth) ->
-    DeadObj.collect_references ~meth ~call_site:e.exp_loc.Location.loc_start e2
-  | Texp_send (e2, Tmeth_val id)
-  | Texp_send (e2, Tmeth_ancestor (id, _)) ->
-    DeadObj.collect_references ~meth:(Ident.name id) ~call_site:e.exp_loc.Location.loc_start e2
+  | Texp_send {obj; meth = Tmeth_name {name}} ->
+      let call_site = e.exp_loc.Location.loc_start in
+      DeadObj.collect_references ~meth:name ~call_site obj
+  | Texp_send {obj; meth = Tmeth_val {id}}
+  | Texp_send {obj; meth = Tmeth_ancestor {id; _}} ->
+      let call_site = e.exp_loc.Location.loc_start in
+      DeadObj.collect_references ~meth:(Ident.name id) ~call_site obj
 
 
-  | Texp_apply (exp, args) ->
-      let args = Utils.Compat.options_of_args args in
+  | Texp_apply {f; args} ->
       if Config.must_report_opt_args state.config then
-        treat_exp exp args;
-      begin match exp.exp_desc with
+        register_arg_uses e;
+      let args = Utils.Compat.options_of_args args in
+      begin match f.exp_desc with
       | Texp_ident (_, _, {Types.val_loc; _})
         when val_loc.Location.loc_ghost -> (* The node is due to lookup preparation
             * anticipated in the typedtree, wich is a case we do not want to treat
@@ -212,10 +221,10 @@ let expr super self e =
       | Texp_ident (_, _, {val_type; _}) ->
           DeadObj.arg val_type args
       | _ ->
-          DeadObj.arg exp.exp_type args
+          DeadObj.arg f.exp_type args
       end
 
-  | Texp_let (_, [{vb_pat; _}], _)
+  | Texp_let {bindings = [{vb_pat; _}]; _}
     when DeadType.is_unit vb_pat.pat_type && sections.style.seq ->
       begin match id_of_var vb_pat.pat_desc with
       | Some id when not (check_underscore (Ident.name id)) -> ()
@@ -225,9 +234,9 @@ let expr super self e =
             "let () = ... in ... (=> use sequence)"
       end
 
-  | Texp_match _ as exp_desc when sections.style.seq ->
-      let (_, comp_l, val_l, _) = Utils.Compat.get_match_data_exn exp_desc in
-      begin match comp_l, val_l with
+  | Texp_match {cases; effect_cases; _} when sections.style.seq ->
+      let effect_cases = Utils.Compat.flatten_effect_cases effect_cases in
+      begin match cases, effect_cases with
       | {c_lhs={pat_desc=Tpat_value v_pat; _} as c_lhs; _}::[], []
         when DeadType.is_unit c_lhs.pat_type ->
           (* split pattern matching for type checking *)
@@ -241,9 +250,9 @@ let expr super self e =
       | _ -> ()
       end
 
-  | Texp_let (Asttypes.Nonrecursive,
-              [{vb_pat; _}],
-              {exp_desc; exp_extra = []; _})
+  | Texp_let {rec_ = Asttypes.Nonrecursive;
+              bindings = [{vb_pat; _}];
+              in_ = {exp_desc; exp_extra = []; _}}
     ->
       let pat_id = id_of_var vb_pat.pat_desc in
       begin match pat_id, exp_desc with

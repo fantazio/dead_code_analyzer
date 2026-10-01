@@ -131,23 +131,22 @@ and register_higher_order_uses builddir e =
         | _ -> None
       in
       let$ (c_lhs, c_rhs) =
-        match expr.exp_desc with
-        #if OCAML_VERSION >= (5, 2, 0)
-        | Texp_function (_, Tfunction_cases {cases = [case]; _}) ->
-        #else
-        | Texp_function {cases = [case]; _} ->
-        #endif
+        let open Vaast.Typedtree in
+        match of_expression_desc expr.exp_desc with
+        | Texp_function {body = Tfunction_cases {cases = [case]; _}; _} ->
             Some (case.c_lhs, case.c_rhs)
         | _ -> None
       in
-      match (c_lhs.pat_desc, c_rhs.exp_desc) with
-      | (Tpat_var _, Texp_apply (_, args)) ->
-          if c_lhs.pat_loc.loc_ghost && c_rhs.exp_loc.loc_ghost
-             && expr.exp_loc.loc_ghost
-          then
-            let args = Utils.Compat.options_of_args args in
-            register_uses builddir ident_loc args
-      | _ -> ()
+      if c_lhs.pat_loc.loc_ghost && c_rhs.exp_loc.loc_ghost
+         && expr.exp_loc.loc_ghost
+      then
+        let pat_desc = c_lhs.pat_desc in
+        let exp_desc = Vaast.Typedtree.of_expression_desc c_rhs.exp_desc in
+        match (pat_desc, exp_desc) with
+        | (Tpat_var _, Texp_apply {args; _}) ->
+              let args = Utils.Compat.options_of_args args in
+              register_uses builddir ident_loc args
+        | _ -> ()
     )
   | _ -> ()
 
@@ -162,12 +161,9 @@ let register_uses val_loc args =
 let rec bind loc expr =
   let state = State.get_current () in
   match expr.exp_desc with
-  #if OCAML_VERSION >= (5, 2, 0)
-  | Texp_function (params, body) -> bind_function loc params body
-  #else
-  | Texp_function {arg_label; cases; _} ->
+  | Texp_function _ as texp_fun ->
       let expr_loc = expr.exp_loc.Location.loc_start in
-      bind_function loc expr_loc arg_label cases
+      bind_function loc expr_loc texp_fun
   | Texp_let (_, [_], in_expr) ->
       (* optional arguments with default value
          `fun ?(opt = default) x -> ...`
@@ -189,7 +185,6 @@ let rec bind loc expr =
           expr.exp_attributes
       in
       if is_default expr then bind loc in_expr
-  #endif
   | exp_desc
     when Config.must_report_opt_args state.config
          && DeadType.nb_args ~keep:`Opt expr.exp_type > 0 ->
@@ -222,44 +217,51 @@ and arg_type arg_label pat_type =
       end
   | _ -> pat_type
 
-#if OCAML_VERSION >= (5, 2, 0)
-and bind_function loc params body =
+and bind_function loc expr_loc texp_fun =
+  let open Vaast.Typedtree in
   let state = State.get_current () in
   let process_params params =
-    let check_param_style arg_loc arg_label = function
-      | Tparam_pat {pat_type; _}
-      | Tparam_optional_default ({pat_type; _}, _) ->
-          let arg_type = arg_type arg_label pat_type in
-          DeadType.check_style arg_type arg_loc.Location.loc_start
+    let process_param arg_label pat_type arg_loc =
+      let arg_type = arg_type arg_label pat_type in
+      DeadType.check_style arg_type arg_loc;
+      register_optional_param state loc arg_label
     in
-    List.iter
-      (fun {fp_kind; fp_arg_label; fp_loc; _} ->
-        check_param_style fp_loc fp_arg_label fp_kind;
-        register_optional_param state loc fp_arg_label
-      )
-      params
+    match params with
+    | Vaast.Core.Since_502 params ->
+      let open OCaml in
+        let pat_type_of_fp_kind = function
+          | Tparam_pat {pat_type; _}
+          | Tparam_optional_default ({pat_type; _}, _) -> pat_type
+        in
+        List.iter
+          (fun {fp_kind; fp_arg_label; fp_loc; _} ->
+            let pat_type = pat_type_of_fp_kind fp_kind in
+            let arg_loc = fp_loc.Location.loc_start in
+            process_param fp_arg_label pat_type arg_loc
+          )
+          params
+    | Vaast.Core.Until_502 (arg_label, pat_type, arg_loc) ->
+        process_param arg_label pat_type arg_loc
   in
-  let process_body = function
-    | Tfunction_body exp
-    | Tfunction_cases {cases = [{c_rhs = exp; _}]; _} ->
-        bind loc exp
+  let process_body body =
+    match body with
+    | Tfunction_body {expr}
+    | Tfunction_cases {cases = [{c_rhs = expr; _}]; _} ->
+        bind loc expr
     | _ -> ()
   in
-  process_params params;
-  process_body body
-#elif OCAML_VERSION >= (4, 14, 0) && OCAML_VERSION < (5, 2, 0)
-and bind_function loc expr_loc arg_label cases =
-  let state = State.get_current () in
-    match cases with
-    | {c_lhs = {pat_type; _}; c_rhs; _}::[] ->
-        let arg_type = arg_type arg_label pat_type in
-        DeadType.check_style arg_type expr_loc;
-        register_optional_param state loc arg_label;
-        bind loc c_rhs
-    | _ -> ()
-#else
-#error "unsupported version"
-#endif
+  match Vaast.Typedtree.of_expression_desc texp_fun with
+  | Texp_function { params = Since_502 params; body } ->
+      process_params (Since_502 params);
+      process_body body
+  | Texp_function { params = Until_502 arg_label;
+                    body = Tfunction_cases {cases=[case]; _} as body;
+                    _}
+    ->
+      let pat_type = case.c_lhs.pat_type in
+      process_params (Until_502 (arg_label, pat_type, expr_loc));
+      process_body body
+  | _ -> ()
 
                 (********   WRAPPING  ********)
 

@@ -164,65 +164,61 @@ let collect_export_from_structure ~path ~comp_unit structure =
       let val_attributes = pat.pat_attributes in
       {val_type; val_kind; val_loc; val_attributes; val_uid}
     in
-    fun pat -> match pat.pat_desc with
-    | Tpat_any
-    | Tpat_constant _
-    | Tpat_variant (_, None, _) ->
-        ()
-    | Tpat_or (pat, _, _)
-        (* In [P1 | P2], both branches must define the same names.
-           Only the locations of the names in [P1] are used to refer to
-           the corresponding values *)
-    | Tpat_variant (_, Some pat, _)
-    | Tpat_lazy pat ->
-        collect_value ~path pat
-    | Tpat_tuple pats ->
-        let pats = Utils.Compat.unlabel_tuple pats in
-        List.iter (collect_value ~path) pats
-    | Tpat_construct (_, _, pats, _)
-    #if OCAML_VERSION >= (5, 4, 0)
-    | Tpat_array (_, pats) ->
-    #else
-    | Tpat_array pats ->
-    #endif
-        List.iter (collect_value ~path) pats
-    | Tpat_record (fields, _) ->
-        List.iter (fun (_, _, pat) -> collect_value ~path pat) fields
-    | (Tpat_var _ | Tpat_alias _) as pat_desc ->
-        let sub_pat, id, loc, uid =
-          (* similar to Utils.Compat.alias_data but the first field (the
-             aliased pattern) is None for Tpat_var and Some for Tpat_alias *)
-          match Utils.Compat.get_var_data pat_desc with
-          | Ok (id, {loc; _}, uid) -> (None, id, loc, uid)
-          | Error _ ->
-              let (sub_pat, id, loc, uid) =
-                Utils.Compat.get_alias_data_exn pat_desc
-              in
-              (Some sub_pat, id, loc, uid)
-        in
-        let id = Ident.name id in
-        let value = value_of pat loc uid in
-        export export_value ~path id value;
-        Option.iter (collect_value ~path) sub_pat
+    fun pat ->
+      let open Vaast.Typedtree in
+      match of_pattern_desc pat.pat_desc with
+      | Tpat_any
+      | Tpat_constant _
+      | Tpat_variant {pat = None; _} ->
+          ()
+      | Tpat_or {left_pat = pat; _}
+          (* In [P1 | P2], both branches must define the same names.
+             Only the locations of the names in [P1] are used to refer to
+             the corresponding values *)
+      | Tpat_variant {pat = Some pat; _}
+      | Tpat_lazy {pat} ->
+          collect_value ~path pat
+      | Tpat_tuple {fields} ->
+          List.iter (fun field -> collect_value ~path field.content) fields
+      | Tpat_construct {fields = pats; _}
+      | Tpat_array {cells = pats; _} ->
+          List.iter (collect_value ~path) pats
+      | Tpat_record {fields; _} ->
+          List.iter (fun (_, _, pat) -> collect_value ~path pat) fields
+      | Tpat_var {id; uid; name}
+      | Tpat_alias {id; uid; name; _} as pat_desc ->
+          let sub_pat =
+            match pat_desc with
+            | Tpat_alias {pat; _} -> Some pat
+            | _ -> None
+          in
+          let id = Ident.name id in
+          let uid =
+            match uid with
+            | Since_502 uid -> uid
+            | Until_502 NA -> Shape.Uid.internal_not_actually_unique
+          in
+          let value = value_of pat name.loc uid in
+          export export_value ~path id value;
+          Option.iter (collect_value ~path) sub_pat
 
   and collect_module ~path m =
-    match m.mod_desc with
+    let open Vaast.Typedtree in
+    match of_module_expr_desc m.OCaml.mod_desc with
     | Tmod_ident _
     | Tmod_unpack _ ->
         ()
-    | Tmod_structure structure ->
+    | Tmod_structure {strc} ->
         export_module ~path m.mod_type;
-        collect_structure ~path structure
-    | Tmod_functor (_, m)
-    | Tmod_apply (m, _, _)
-    #if OCAML_VERSION >= (5, 1, 0)
-    | Tmod_apply_unit m (* Constructor introduced in OCaml 5.1 *)
-    #endif
-    | Tmod_constraint (m, _, Tmodtype_implicit, _) ->
+        collect_structure ~path strc
+    | Tmod_functor {body = m; _}
+    | Tmod_apply {ftor = m; _}
+    | Tmod_apply_unit {ftor = m}
+    | Tmod_constraint {mod_expr = m; constraint_ = Tmodtype_implicit; _} ->
         collect_module ~path m
-    | Tmod_constraint (_, _, Tmodtype_explicit mt, _) ->
-        export_module ~path mt.mty_type;
-        Utils.typedtree_signature_of_modtype mt
+    | Tmod_constraint {constraint_ = Tmodtype_explicit {mod_type}; _} ->
+        export_module ~path mod_type.mty_type;
+        Utils.typedtree_signature_of_modtype mod_type
         |> Option.iter (collect_export_from_signature ~path ~comp_unit)
 
   and collect_module_binding ~path = function
@@ -283,8 +279,9 @@ let collect_from_include incl_decl =
      types and those of the current compilation unit.
   *)
   let rec get_mod_path_and_signature mod_expr =
-    match mod_expr.Typedtree.mod_desc with
-    | Tmod_ident (mod_path, _) ->
+    let open Vaast.Typedtree in
+    match of_module_expr_desc mod_expr.OCaml.mod_desc with
+    | Tmod_ident {path; _} ->
         let mt =
           match mod_expr.mod_type with
             | Mty_alias _ as mt ->
@@ -297,18 +294,16 @@ let collect_from_include incl_decl =
             | mt -> mt
         in
         let signature = Utils.signature_of_modtype mt in
-        (Some mod_path, signature)
-    | Tmod_structure structure ->
-        (None, structure.str_type)
-    | Tmod_unpack (_, mod_type) ->
+        (Some path, signature)
+    | Tmod_structure {strc} ->
+        (None, strc.str_type)
+    | Tmod_unpack {mod_type; _} ->
         let signature = Utils.signature_of_modtype mod_type in
         (None, signature)
-    | Tmod_functor (_, mod_expr)
-    | Tmod_apply (mod_expr, _, _)
-    #if OCAML_VERSION >= (5, 1, 0)
-    | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
-    #endif
-    | Tmod_constraint (mod_expr, _, _, _) ->
+    | Tmod_functor {body = mod_expr; _}
+    | Tmod_apply {ftor = mod_expr; _}
+    | Tmod_apply_unit {ftor = mod_expr}
+    | Tmod_constraint {mod_expr; _} ->
         get_mod_path_and_signature mod_expr
   in
   (* incl_path is used to identify and store type equivalences *)
@@ -389,8 +384,9 @@ let collect_eq_from_module_alias ~path module_binding =
         | _ -> ()
       in
       let rec collect_from_module_expr mod_expr =
-        match mod_expr.Typedtree.mod_desc with
-        | Tmod_ident (mod_path, _) ->
+        let open Vaast.Typedtree in
+        match of_module_expr_desc mod_expr.OCaml.mod_desc with
+        | Tmod_ident {path; _} ->
             let mt =
               let exported_mt =
                 Hashtbl.find_opt exported_modules rev_alias_path
@@ -400,28 +396,26 @@ let collect_eq_from_module_alias ~path module_binding =
               | None ->
                   try
                     let env = Utils.Envaux.load_env mod_expr.mod_env in
-                    let md = Env.find_module mod_path env in
+                    let md = Env.find_module path env in
                     Some md.Types.md_type
                   with
                     | Envaux.(Error (Module_not_found _))
                     | Not_found -> None
             in
-            let original_path = mod_path in
+            let original_path = path in
             Option.iter
               (fun mt ->
                 Utils.signature_of_modtype mt
                 |> List.iter (collect_from_sig_item ~original_path)
               )
               mt
-        | Tmod_constraint (mod_expr, _, _, _)
-        | Tmod_functor (_, mod_expr)
-        #if OCAML_VERSION >= (5, 1, 0)
-        | Tmod_apply_unit mod_expr (* Constructor introduced in OCaml 5.1 *)
-        #endif
-        | Tmod_apply (mod_expr, _, _) ->
+        | Tmod_constraint {mod_expr; _}
+        | Tmod_functor {body = mod_expr; _}
+        | Tmod_apply_unit {ftor = mod_expr}
+        | Tmod_apply {ftor = mod_expr; _} ->
             collect_from_module_expr mod_expr
         | Tmod_structure _
-        | Tmod_unpack (_, _) -> ()
+        | Tmod_unpack _ -> ()
       in
       collect_from_module_expr mb_expr
 

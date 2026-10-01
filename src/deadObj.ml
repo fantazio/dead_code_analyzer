@@ -138,15 +138,19 @@ let rec treat_fields action typ = match get_deep_desc typ with
 
 
 let rec repr_exp expr f =
-  match expr.exp_desc with
-    | Texp_function _ as exp_desc ->
-        begin match Utils.Compat.get_function_bodies exp_desc with
-        | Ok (expr::_) -> repr_exp expr f
-        | _ -> assert false
-        end
-    | Texp_sequence (_, expr)
-    | Texp_let (_, _, expr)
-    | Texp_apply (expr, _) -> repr_exp expr f
+  match Vaast.Typedtree.of_expression_desc expr.exp_desc with
+    | Texp_function {body; _} ->
+        let expr =
+          match body with
+          | Tfunction_body {expr} -> expr
+          | Tfunction_cases {cases = {c_rhs; _}::_; _} -> c_rhs
+          | Tfunction_cases {cases = []; _} -> assert false
+        in
+        repr_exp expr f
+    | Texp_sequence {expr2 = expr; _}
+    | Texp_let {in_ = expr; _}
+    | Texp_apply {f = expr; _} ->
+        repr_exp expr f
     | _ -> f expr
 
 let locate expr =
@@ -283,22 +287,22 @@ let add_var loc expr =
       List.map (fun {c_rhs; _} -> c_rhs) cases
       |> find_first_kind
     in
-    match expr.exp_desc with
+    match Vaast.Typedtree.of_expression_desc expr.exp_desc with
     (* Result identified *)
     | Texp_object _ ->
         `Obj
-    | Texp_new (_, _, {cty_loc = {Location.loc_start = cty_loc; _}; _}) ->
+    | Texp_new {class_decl; _} ->
+        let cty_loc = class_decl.cty_loc.Location.loc_start in
         `New cty_loc
-    | Texp_ident (_, _, {Types.val_loc; _}) ->
-        `Ident val_loc.Location.loc_start
+    | Texp_ident {value_desc; _} ->
+        let val_loc = value_desc.val_loc.Location.loc_start in
+        `Ident val_loc
     (* Cases not traversed by repr_exp *)
-    | Texp_match _ as exp_desc ->
-        let (_, cases, _, _) = Utils.Compat.get_match_data_exn exp_desc in
+    | Texp_match {cases; _} ->
         find_first_case_kind cases
-    | Texp_try _ as exp_desc ->
-        let (_, cases, _) = Utils.Compat.get_try_data_exn exp_desc in
+    | Texp_try {cases; _} ->
         find_first_case_kind cases
-    | Texp_ifthenelse (_, then_, Some else_) ->
+    | Texp_ifthenelse {then_; else_ = Some else_; _} ->
         find_first_kind [then_; else_]
     (* Default *)
     | _ -> `Ignore
@@ -321,9 +325,10 @@ let class_structure cl_struct =
     | Tpat_alias _
     | Tpat_var _ when not pat.pat_loc.Location.loc_ghost ->
         add_equal pat.pat_loc.Location.loc_start !last_class
-    | _ -> () end;
-    match Utils.Compat.get_alias_data pat.pat_desc with
-    | Ok (pat, _, _, _) -> add_aliases pat
+    | _ -> ()
+    end;
+    match Vaast.Typedtree.of_pattern_desc pat.pat_desc with
+    | Tpat_alias {pat; _} -> add_aliases pat
     | _ -> ()
   in
   add_aliases cl_struct.cstr_self
