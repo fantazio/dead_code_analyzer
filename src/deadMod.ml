@@ -51,26 +51,57 @@ let rec make_arg typ =
   |> List.flatten
 
 
-let expr m = match m.mod_desc with
+let retrieve_signature mod_env mod_type =
+  match mod_type with
+  | Mty_ident _ | Mty_alias _ ->
+      begin try
+        let env = Utils.Envaux.load_env mod_env in
+        Env.scrape_alias env mod_type
+      with Envaux.(Error (Module_not_found _)) ->
+        mod_type
+      end
+  | _ -> mod_type
+
+
+let apply_by_content_requirement mod_expr expected_content actual_content =
+  let exp_content = List.map fst expected_content in
+  List.iter
+    (fun (x, loc) ->
+      let is_obj = String.contains x '#' in
+      let is_type = not is_obj && DeadType.is_type x in
+      let relevant_report_enabled =
+        let state = State.get_current () in
+        let sections = state.config.sections in
+        if is_obj then Config.must_report_section sections.methods
+        else if is_type then exported ~is_type sections.types loc
+        else exported sections.exported_values loc
+      in
+      let value_is_expected_by_modtype =
+        List.mem x exp_content || exp_content = []
+      in
+      if value_is_expected_by_modtype && relevant_report_enabled then
+        LocHash.add_set references loc mod_expr.mod_loc.Location.loc_start
+    )
+    actual_content
+
+
+let apply_by_requirement mod_expr =
+  match mod_expr.mod_desc with
+  | Tmod_constraint (me, mt, _, _) ->
+    let exp_mt = retrieve_signature mod_expr.mod_env mt in
+    let act_mt = retrieve_signature mod_expr.mod_env me.mod_type in
+    let exp_content = make_content exp_mt in
+    let act_content = make_content act_mt in
+    apply_by_content_requirement mod_expr exp_content act_content
+  | _ -> ()
+
+
+let expr mod_expr =
+  match mod_expr.mod_desc with
   | Tmod_apply (m1, m2, _) ->
-    let l1 = make_arg m1.mod_type |> List.map fst in
+    let l1 = make_arg m1.mod_type in
     let l2 = make_content m2.mod_type in
-    List.iter
-      (fun (x, loc) ->
-        let is_obj = String.contains x '#' in
-        let is_type = not is_obj && DeadType.is_type x in
-        let relevant_report_enabled =
-          let state = State.get_current () in
-          let sections = state.config.sections in
-          if is_obj then Config.must_report_section sections.methods
-          else if is_type then exported ~is_type sections.types loc
-          else exported sections.exported_values loc
-        in
-        let value_is_expected_by_modtype = List.mem x l1 || l1 = [] in
-        if value_is_expected_by_modtype && relevant_report_enabled then
-          LocHash.add_set references loc m.mod_loc.Location.loc_start
-      )
-      l2
+    apply_by_content_requirement mod_expr l1 l2
   | _ -> ()
 
 

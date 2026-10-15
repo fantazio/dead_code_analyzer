@@ -258,6 +258,8 @@ let expr super self e =
       | _ -> ()
       end
 
+  | Texp_pack mod_expr -> DeadMod.apply_by_requirement mod_expr
+
   | _ -> ()
   end;
   super.Tast_mapper.expr self e
