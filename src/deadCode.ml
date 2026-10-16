@@ -353,26 +353,40 @@ let assoc decs (loc1, loc2) =
   and fn2 = loc2.Lexing.pos_fname in
   let sourceunit = State.File_infos.get_sourceunit state.file_infos in
   let is_implem fn = fn.[String.length fn - 1] <> 'i' in
-  let has_iface fn =
-    fn.[String.length fn - 1] = 'i'
-    || ( Utils.Filepath.unit fn = sourceunit
-      && DeadCommon.file_exists (fn ^ "i"))
+  let is_exported loc =
+    (* An exported location is either:
+          1. already encountered and stored in decs,
+          2. coming from a .mli,
+          3. coming from another compilation unit
+       Points 2 and 3 partially overlap. There exists cases where elements
+       found in the current unit's .mli are not stored in decs (e.g.
+       types with an explicit equation).
+    *)
+    let fn = loc.Lexing.pos_fname in
+    Hashtbl.mem decs loc || not (is_implem fn)
+    || Utils.Filepath.unit fn <> sourceunit
   in
-  let is_iface fn loc =
-    Hashtbl.mem decs loc || Utils.Filepath.unit fn <> sourceunit
-    || not (is_implem fn && has_iface fn)
+  let merge_internal_uses () =
+    if state.config.internal && is_implem fn1 && String.equal fn1 fn2 then
+      (* loc1 is an alias for loc2 *)
+      DeadCommon.LocHash.merge_set references loc2 references loc1
+  in
+  let propagate_exported_uses () =
+    let loc1_is_exported = is_exported loc1 in
+    let loc2_is_exported = is_exported loc2 in
+    if loc1_is_exported && loc2_is_exported then
+      (* loc1 is used by requirement at loc2 *)
+      DeadCommon.LocHash.add_set references loc1 loc2
+    else if loc1_is_exported then
+      (* loc1 is an exported version of loc2 *)
+      DeadCommon.LocHash.merge_set references loc1 references loc2
+    else if loc2_is_exported then
+      (* loc2 is an exported version of loc1 *)
+      DeadCommon.LocHash.merge_set references loc2 references loc1
   in
   if fn1 <> _none && fn2 <> _none && loc1 <> loc2 then begin
-    if (state.config.internal || fn1 <> fn2) && is_implem fn1 && is_implem fn2 then
-      DeadCommon.LocHash.merge_set references loc2 references loc1;
-    if is_iface fn1 loc1 then begin
-      if is_iface fn2 loc2 then
-        DeadCommon.LocHash.add_set references loc1 loc2
-      else
-        DeadCommon.LocHash.merge_set references loc1 references loc2;
-    end
-    else
-      DeadCommon.LocHash.merge_set references loc2 references loc1
+    merge_internal_uses ();
+    propagate_exported_uses ()
   end
 
 
