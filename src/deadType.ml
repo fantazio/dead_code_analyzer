@@ -362,10 +362,12 @@ let prepare_report () =
     | Some loc1, Some loc2 ->
         let repr1 = get_repr loc1 in
         let repr2 = get_repr loc2 in
-        Hashtbl.replace reprs repr1 repr2;
-        (* repr1 is now represented by repr2: its references are transfered *)
-        LocHash.merge_set references repr2 references repr1;
-        LocHash.remove references repr1
+        if repr1 <> repr2 then begin
+          Hashtbl.replace reprs repr1 repr2;
+          (* repr1 is now represented by repr2: its references are transfered *)
+          LocHash.merge_set references repr2 references repr1;
+          LocHash.remove references repr1
+        end
   in
   let update_references loc =
     Option.iter
