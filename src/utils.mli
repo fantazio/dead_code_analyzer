@@ -22,6 +22,8 @@ module Filepath : sig
       does not fit in another kind, then its kind is [Ignore].
       Other kinds are self explanatory. *)
 
+  val raw_concat : t -> t -> t
+
   val concat : t -> t -> t
   (** [concat dir file] is similiar to [Filename.concat dir file] if [file]
       is relative.

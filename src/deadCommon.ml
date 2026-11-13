@@ -283,6 +283,8 @@ module VdNode = struct
     in loop (func loc) lab occur
 
   let eof (state : State.t) =
+    print_endline "EOF";
+    print_endline (state.file_infos.cm_file);
     (* TODO: clarify this code (and the whole VdNode module) *)
     let sons = Utils.LocHash.to_seq_keys parents |> List.of_seq in
     let delete loc =
@@ -313,6 +315,17 @@ module VdNode = struct
         if not (Utils.LocSet.is_empty worklist) then
           let loc = Utils.LocSet.choose worklist in
           let wl = Utils.LocSet.remove loc worklist in
+          let () = print_endline "COMPARE UNITS" in
+          let () = print_endline @@ String.escaped (String.concat "'" [
+            ""; State.File_infos.get_sourcepath state.file_infos;
+            " -> ";
+            sourceunit; ""])
+          in
+          let () = print_endline @@ String.escaped (String.concat "'" [
+            ""; loc.Lexing.pos_fname;
+            " -> ";
+            Utils.Filepath.unit loc.Lexing.pos_fname; ""])
+          in
           if Utils.Filepath.unit loc.Lexing.pos_fname <> sourceunit then
             List.iter (Utils.LocHash.remove parents) loc_list
           else begin

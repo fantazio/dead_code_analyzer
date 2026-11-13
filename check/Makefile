@@ -65,6 +65,7 @@ ifndef SCENARIO
 	echo "Error: Please provide a SCENARIO name"
 else
 	make -C ../examples run_dca DEADFLAGS="$(DEADFLAGS)" REDIRECT="> $(TARGET)"
+	cat $(TARGET)
 	./src/check.$(EXT)$(EXE) "./$(SCENARIO)/$(SCENARIO).exp" $(TARGET) $(REDIRECT_SCENARIO)
 ifndef DEADFLAGS
 		echo "WARNING: No DEADFLAGS was provided"

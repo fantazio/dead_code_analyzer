@@ -45,6 +45,18 @@ module Filepath = struct
     else Ignore
 
   let normalize filepath =
+    let drive, filepath =
+      let is_letter = function
+        | 'A' .. 'Z' | 'a' .. 'z' -> true
+        | _ -> false
+      in
+      let has_drive s = String.length s >= 2 && is_letter s.[0] && s.[1] = ':' in
+      if not Sys.unix && has_drive filepath then
+        let drive = String.sub filepath 0 2 in
+        let filepath = String.sub filepath 2 (String.length filepath - 2) in
+        drive, filepath
+      else "", filepath
+    in
     let get_parts path =
       let rec get_parts path acc =
         let basename = Filename.basename path in
@@ -58,9 +70,12 @@ module Filepath = struct
       let dirname = Filename.dirname path in
       get_parts dirname [basename]
     in
+    let is_dir_sep part = String.equal part Filename.dir_sep in
     let rec remove_redundant prev next =
       match prev, next with
       | res, [] -> List.rev res
+      | root::[], ".."::next when is_dir_sep root (* /../next -> /next *) ->
+          remove_redundant prev next
       | ".."::_, ".."::next (* ../../ prefix cannot be consumed *) ->
           remove_redundant (".."::prev) next
       | _::prev, ".."::next (* prev/foo/../next -> prev/next *)
@@ -72,7 +87,7 @@ module Filepath = struct
     in
     let prepare_for_concat = function
       | [] -> Filename.current_dir_name::[]
-      | root::(_::_ as parts) when String.equal root Filename.dir_sep ->
+      | root::(_::_ as parts) when is_dir_sep root ->
           (* protects against normalized_path = "//path" when concatenating *)
           ""::parts
       | parts -> parts
@@ -81,6 +96,7 @@ module Filepath = struct
     |> remove_redundant []
     |> prepare_for_concat
     |> String.concat Filename.dir_sep
+    |> ( ^ ) drive
 
   let raw_concat dir file =
     if Filename.is_relative file then Filename.concat dir file
